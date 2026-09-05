@@ -8,6 +8,7 @@ import { Login } from '@/pages/auth/Login';
 import { Dashboard } from '@/pages/dashboard/Dashboard';
 import { Contacts } from '@/pages/master/contacts/Contacts';
 import { Products } from '@/pages/master/products/Products'; // 👈 Import Products
+import { Accounts } from '@/pages/master/accounts/Accounts';
 
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
@@ -99,9 +100,13 @@ export const router = createBrowserRouter([
 
   // All other routes use placeholder pages
   {
-    path: '/master/accounts',
-    ...page('Chart of Accounts', 'Manage your chart of accounts.'),
-  },
+  path: '/master/accounts',
+  element: (
+    <AppShell>
+      <Accounts />
+    </AppShell>
+  ),
+},
   {
     path: '/master/journals',
     ...page('Journals', 'Manage journal entries.'),
