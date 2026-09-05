@@ -95,6 +95,7 @@ const mockTransactions: RecentTransaction[] = [
 // The service – will be replaced with real API calls
 export const dashboardService = {
   getDashboardData: async (dateRange: string): Promise<DashboardData> => {
+    void dateRange;
     // Simulate network delay
     await new Promise((resolve) => setTimeout(resolve, 800));
 

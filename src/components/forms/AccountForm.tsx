@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -27,9 +27,9 @@ export const AccountForm: React.FC<AccountFormProps> = ({
 }) => {
   const {
     register,
+    control,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<AccountFormData>({
     resolver: zodResolver(accountSchema),
@@ -39,7 +39,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     },
   });
 
-  const typeValue = watch('type');
+  const typeValue = useWatch({ control, name: 'type' });
 
   const handleFormSubmit = (data: AccountFormData) => {
     onSubmit({

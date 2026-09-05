@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ShoppingCart, Package, FileText, CreditCard } from 'lucide-react';
+import { ShoppingCart, Package, FileText, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const actions = [

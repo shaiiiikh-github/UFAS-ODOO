@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { analyticAccountService } from '@/services/analyticAccountService';
-import type { AnalyticAccount, AnalyticAccountInput, AnalyticAccountFilters } from '@/types/analyticAccount';
+import type { AnalyticAccountInput, AnalyticAccountFilters } from '@/types/analyticAccount';
 import { toast } from 'sonner';
 
 export const ANALYTIC_ACCOUNTS_QUERY_KEY = 'analyticAccounts';

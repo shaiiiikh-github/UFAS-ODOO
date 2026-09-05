@@ -16,7 +16,7 @@ interface RevenueExpenseChartProps {
   data: RevenueExpensePoint[];
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white border border-[#e5e7eb] rounded-md shadow-sm p-3 text-sm">

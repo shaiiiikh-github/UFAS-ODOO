@@ -14,7 +14,7 @@ const STATUS_COLORS = {
   overdue: '#dc2626',     // red
 };
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number }> }) => {
   if (active && payload && payload.length) {
     const { name, value } = payload[0];
     return (

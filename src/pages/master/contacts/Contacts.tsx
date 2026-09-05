@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Plus, Search, X, Eye, Pencil, ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
 import { ContactAvatar } from '@/components/common/ContactAvatar';
@@ -10,7 +10,6 @@ import { useContacts, useCreateContact, useUpdateContact } from '@/hooks/useCont
 import type { Contact, ContactInput, ContactType } from '@/types/contact';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -23,7 +22,6 @@ export const Contacts: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
-  const navigate = useNavigate();
 
   const filters = useMemo(() => ({
     search: search.trim() || undefined,
@@ -143,29 +141,6 @@ export const Contacts: React.FC = () => {
       </>
     );
   }
-
-  // Modal overlay component
-  const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }) => {
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-[#1a2332]">{title}</h2>
-            <button onClick={onClose} className="text-[#6b7280] hover:text-[#1a2332]">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          {children}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <>

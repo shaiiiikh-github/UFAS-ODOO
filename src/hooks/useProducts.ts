@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productService } from '@/services/productService';
-import type { Product, ProductInput, ProductFilters } from '@/types/product';
+import type { ProductInput, ProductFilters } from '@/types/product';
 import { toast } from 'sonner';
 
 export const PRODUCTS_QUERY_KEY = 'products';

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { budgetService } from '@/services/budgetService';
-import type { Budget, BudgetInput, BudgetFilters } from '@/types/budget';
+import type { BudgetInput, BudgetFilters } from '@/types/budget';
 import { toast } from 'sonner';
 
 export const BUDGETS_QUERY_KEY = 'budgets';

@@ -8,7 +8,7 @@ const mockJournals: Journal[] = [
   { id: '4', name: 'Cash', type: 'cash' },
 ];
 
-let journals = [...mockJournals];
+const journals = [...mockJournals];
 let nextId = journals.length + 1;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

@@ -1,0 +1,1 @@
+import { useQuery } from '@tanstack/react-query'; import { balanceSheetService } from '@/services/balanceSheetService'; export const useBalanceSheet = (asOfDate?: string) => useQuery({ queryKey: ['balanceSheet', asOfDate], queryFn: () => balanceSheetService.getBalanceSheet(asOfDate) });

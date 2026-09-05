@@ -1,38 +1,19 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const LABEL_MAP: Record<string, string> = {
-  dashboard: 'Dashboard',
-  master: 'Master Data',
-  contacts: 'Contacts',
-  products: 'Products',
-  accounts: 'Chart of Accounts',
-  journals: 'Journals',
-  analytics: 'Analytic Accounts',
-  budgets: 'Budgets',
-  sales: 'Sales',
-  orders: 'Orders',
-  invoices: 'Invoices',
-  payments: 'Payments',
-  purchases: 'Purchases',
-  bills: 'Bills',
-  accounting: 'Accounting',
-  'journal-entries': 'Journal Entries',
-  ledgers: 'Ledgers',
-  reports: 'Reports',
-  'profit-loss': 'Profit & Loss',
-  'balance-sheet': 'Balance Sheet',
-  budget: 'Budget Report',
-  settings: 'Settings',
-  help: 'Help',
+  dashboard: 'navigation:dashboard',
+  master: 'navigation:masterData', contacts: 'navigation:contacts', products: 'navigation:products', accounts: 'navigation:accounts', journals: 'navigation:journals', analytics: 'navigation:analytics', budgets: 'navigation:budgets', sales: 'navigation:sales', orders: 'navigation:salesOrders', invoices: 'navigation:customerInvoices', payments: 'navigation:customerPayments', purchases: 'navigation:purchases', bills: 'navigation:vendorBills', accounting: 'navigation:accounting', 'journal-entries': 'navigation:journalEntries', ledgers: 'navigation:ledgers', reports: 'navigation:reports', 'profit-loss': 'navigation:profitLoss', 'balance-sheet': 'navigation:balanceSheet', budget: 'navigation:budgetReport', settings: 'common:settings', help: 'navigation:help',
 };
 
 export const Breadcrumbs: React.FC = () => {
+  const { t } = useTranslation();
   const location = useLocation();
   const pathnames = location.pathname.split('/').filter(Boolean);
 
   if (pathnames.length === 0) {
-    return <span className="text-sm font-medium text-[#1a2332]">Dashboard</span>;
+    return <span className="text-sm font-medium text-[#1a2332]">{t('navigation:dashboard')}</span>;
   }
 
   return (
@@ -40,7 +21,7 @@ export const Breadcrumbs: React.FC = () => {
       {pathnames.map((segment, index) => {
         const to = '/' + pathnames.slice(0, index + 1).join('/');
         const isLast = index === pathnames.length - 1;
-        const label = LABEL_MAP[segment] || segment;
+        const label = LABEL_MAP[segment] ? t(LABEL_MAP[segment]) : segment;
 
         return (
           <React.Fragment key={to}>

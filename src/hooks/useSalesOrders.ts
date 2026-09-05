@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesOrderService } from '@/services/salesOrderService';
-import type { SalesOrder, SalesOrderInput, SalesOrderFilters } from '@/types/salesOrder';
+import type { SalesOrderInput, SalesOrderFilters } from '@/types/salesOrder';
 import { toast } from 'sonner';
 
 export const SALES_ORDERS_QUERY_KEY = 'salesOrders';
@@ -29,7 +29,7 @@ export const useCreateSalesOrder = () => {
       queryClient.invalidateQueries({ queryKey: [SALES_ORDERS_QUERY_KEY] });
       toast.success('Sales order created successfully.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to create sales order.');
     },
   });
@@ -45,7 +45,7 @@ export const useUpdateSalesOrder = () => {
       queryClient.invalidateQueries({ queryKey: [SALES_ORDERS_QUERY_KEY, updated.id] });
       toast.success('Sales order updated successfully.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to update sales order.');
     },
   });
@@ -60,7 +60,7 @@ export const useConfirmSalesOrder = () => {
       queryClient.invalidateQueries({ queryKey: [SALES_ORDERS_QUERY_KEY, updated.id] });
       toast.success('Sales order confirmed.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to confirm sales order.');
     },
   });
@@ -75,7 +75,7 @@ export const useCancelSalesOrder = () => {
       queryClient.invalidateQueries({ queryKey: [SALES_ORDERS_QUERY_KEY, updated.id] });
       toast.success('Sales order cancelled.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to cancel sales order.');
     },
   });
@@ -89,7 +89,7 @@ export const useDeleteSalesOrder = () => {
       queryClient.invalidateQueries({ queryKey: [SALES_ORDERS_QUERY_KEY] });
       toast.success('Sales order deleted.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to delete sales order.');
     },
   });

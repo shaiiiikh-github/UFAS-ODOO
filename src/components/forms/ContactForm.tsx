@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button'; // keep this if it exists
@@ -34,9 +34,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
 }) => {
   const {
     register,
+    control,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -53,7 +53,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
     },
   });
 
-  const typeValue = watch('type');
+  const typeValue = useWatch({ control, name: 'type' });
 
   const handleFormSubmit = (data: ContactFormData) => {
     onSubmit({

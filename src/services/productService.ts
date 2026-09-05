@@ -52,7 +52,7 @@ const mockProducts: Product[] = [
   },
 ];
 
-let products = [...mockProducts];
+const products = [...mockProducts];
 let nextId = products.length + 1;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
