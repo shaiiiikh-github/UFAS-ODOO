@@ -14,6 +14,7 @@ import { AnalyticAccounts } from '@/pages/master/analytics/AnalyticAccounts';
 import { Budgets } from '@/pages/master/budgets/Budgets';
 import { SalesOrders } from '@/pages/sales/orders/SalesOrders';
 import { CustomerInvoices } from '@/pages/sales/invoices/CustomerInvoices';
+import { CustomerPayments } from '@/pages/sales/payments/CustomerPayments';
 import { PurchaseOrders } from '@/pages/purchases/orders/PurchaseOrders';
 import { VendorBills } from '@/pages/purchases/bills/VendorBills';
 import { VendorPayments } from '@/pages/purchases/payments/VendorPayments';
@@ -160,10 +161,14 @@ export const router = createBrowserRouter([
     </AppShell>
   ),
 },
-  {
-    path: '/sales/payments',
-    ...page('Customer Payments', 'Manage customer payments.'),
-  },
+{
+  path: '/sales/payments',
+  element: (
+    <AppShell>
+      <CustomerPayments />
+    </AppShell>
+  ),
+},
   {
     path: '/purchases/orders',
     element: (
