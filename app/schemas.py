@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 import uuid
 from app.models.domain import ContactType, ProductType, DocumentType, DocumentStatus
+from app.models.accounting import AnalyticType
 
 # --- Contacts ---
 class ContactCreate(BaseModel):
@@ -68,3 +69,33 @@ class PnLResponse(BaseModel):
     total_income: Decimal
     total_expense: Decimal
     net_profit: Decimal
+    
+class PaymentCreate(BaseModel):
+    document_id: uuid.UUID
+    amount: Decimal
+    payment_method: str  # e.g., "Bank" or "Cash"
+
+class PaymentResponse(BaseModel):
+    message: str
+    document_status: DocumentStatus
+
+# --- Analytics ---
+class AnalyticAccountCreate(BaseModel):
+    name: str
+    type: AnalyticType
+
+class AnalyticAccountResponse(AnalyticAccountCreate):
+    id: uuid.UUID
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Budgets ---
+class BudgetCreate(BaseModel):
+    name: str
+    analytic_account_id: uuid.UUID
+    planned_amount: Decimal
+    start_date: date
+    end_date: date
+
+class BudgetResponse(BudgetCreate):
+    id: uuid.UUID
+    model_config = ConfigDict(from_attributes=True)

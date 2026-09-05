@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UFAS Testing Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans p-6">
+    <div class="max-w-6xl mx-auto space-y-8">
+        <header class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">Urban Furniture Accounting System</h1>
+                <p class="text-sm text-slate-500">Local Testing & Automation Dashboard</p>
+            </div>
+            <div id="server-status" class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">Checking Server...</div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 1. Create Contact -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-semibold mb-4 text-slate-800">1. Create Contact</h2>
+                <div class="space-y-3">
+                    <input type="text" id="contact-name" placeholder="Name" class="w-full p-2 border rounded text-sm" value="Acme Corp">
+                    <select id="contact-type" class="w-full p-2 border rounded text-sm"><option value="Customer">Customer</option></select>
+                    <input type="email" id="contact-email" placeholder="Email" class="w-full p-2 border rounded text-sm" value="test@acme.com">
+                    <button onclick="createContact()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-medium hover:bg-indigo-700">Create Contact</button>
+                </div>
+                <div id="contact-result" class="mt-3 text-xs bg-slate-100 p-2 rounded font-mono overflow-x-auto">No contact created yet.</div>
+            </div>
+
+            <!-- 2. Create Product -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-semibold mb-4 text-slate-800">2. Create Product</h2>
+                <div class="space-y-3">
+                    <input type="text" id="product-name" placeholder="Product Name" class="w-full p-2 border rounded text-sm" value="Wooden Table">
+                    <input type="number" id="product-price" placeholder="Sales Price" class="w-full p-2 border rounded text-sm" value="1000.00">
+                    <input type="number" id="product-cost" placeholder="Cost Price" class="w-full p-2 border rounded text-sm" value="500.00">
+                    <button onclick="createProduct()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-medium hover:bg-indigo-700">Create Product</button>
+                </div>
+                <div id="product-result" class="mt-3 text-xs bg-slate-100 p-2 rounded font-mono overflow-x-auto">No product created yet.</div>
+            </div>
+        </div>
+
+        <!-- 3. Transactions & Razorpay Checkout -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <h2 class="text-lg font-semibold mb-4 text-slate-800">3. Transaction Workflow & Online Payment</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" id="inv-contact-id" placeholder="Contact UUID" class="w-full p-2 border rounded text-xs font-mono">
+                <input type="text" id="inv-product-id" placeholder="Product UUID" class="w-full p-2 border rounded text-xs font-mono">
+                <input type="number" id="inv-qty" value="1" class="w-full p-2 border rounded text-xs">
+            </div>
+            <div class="flex flex-wrap gap-3 mt-4">
+                <button onclick="createInvoice()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium">Generate Invoice</button>
+                <button onclick="confirmInvoice()" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium">Confirm Document</button>
+                <button onclick="payWithRazorpay()" class="bg-purple-600 text-white px-4 py-2 rounded text-sm font-medium">Pay with Razorpay</button>
+            </div>
+            <div id="workflow-result" class="mt-4 text-xs bg-slate-100 p-3 rounded font-mono overflow-x-auto">Workflow logs appear here...</div>
+        </div>
+
+        <!-- 4. Reports -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold">4. Live Financial Statements</h2>
+                <button onclick="fetchReports()" class="bg-slate-800 text-white px-3 py-1.5 rounded text-xs">Refresh Reports</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded border"><h3 class="font-semibold mb-2">P&L Statement</h3><pre id="pnl-output" class="text-xs font-mono">Loading...</pre></div>
+                <div class="bg-slate-50 p-4 rounded border"><h3 class="font-semibold mb-2">Balance Sheet</h3><pre id="bs-output" class="text-xs font-mono">Loading...</pre></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        let currentDocId = null;
+
+        window.onload = async () => {
+            try {
+                const res = await fetch(`${API_URL}/docs`);
+                if (res.ok) {
+                    document.getElementById('server-status').className = "px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold";
+                    document.getElementById('server-status').innerText = "Server Online";
+                    fetchReports();
+                }
+            } catch (e) {
+                document.getElementById('server-status').innerText = "Server Offline";
+            }
+        };
+
+        async function createContact() {
+            const res = await fetch(`${API_URL}/api/contacts/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: document.getElementById('contact-name').value, type: document.getElementById('contact-type').value, email: document.getElementById('contact-email').value})
+            });
+            const json = await res.json();
+            document.getElementById('contact-result').innerText = JSON.stringify(json, null, 2);
+            if(json.id) document.getElementById('inv-contact-id').value = json.id;
+        }
+
+        async function createProduct() {
+            const res = await fetch(`${API_URL}/api/products/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: document.getElementById('product-name').value, type: "Goods", sales_price: parseFloat(document.getElementById('product-price').value), cost: parseFloat(document.getElementById('product-cost').value)})
+            });
+            const json = await res.json();
+            document.getElementById('product-result').innerText = JSON.stringify(json, null, 2);
+            if(json.id) document.getElementById('inv-product-id').value = json.id;
+        }
+
+        async function createInvoice() {
+            const res = await fetch(`${API_URL}/api/documents/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contact_id: document.getElementById('inv-contact-id').value,
+                    type: "Customer Invoice",
+                    date: new Date().toISOString().split('T')[0],
+                    lines: [{product_id: document.getElementById('inv-product-id').value, quantity: parseInt(document.getElementById('inv-qty').value), unit_price: 1000.00}]
+                })
+            });
+            const json = await res.json();
+            currentDocId = json.id;
+            document.getElementById('workflow-result').innerText = `Invoice Created (ID: ${json.id}) Status: ${json.status}`;
+        }
+
+        async function confirmInvoice() {
+            if(!currentDocId) { alert("Create invoice first!"); return; }
+            const res = await fetch(`${API_URL}/api/documents/${currentDocId}/confirm`, {method: 'POST'});
+            const json = await res.json();
+            document.getElementById('workflow-result').innerText = `Document Confirmed. Ledger Updated.`;
+            fetchReports();
+        }
+
+        async function payWithRazorpay() {
+            if(!currentDocId) { alert("Create and confirm invoice first!"); return; }
+            const res = await fetch(`${API_URL}/api/gateway/create-order/${currentDocId}`, {method: 'POST'});
+            const order = await res.json();
+
+            var options = {
+                "key": order.key_id,
+                "amount": order.amount,
+                "currency": order.currency,
+                "name": "Urban Furniture",
+                "description": "Invoice Payment",
+                "order_id": order.order_id,
+                "handler": async function (response){
+                    const verifyRes = await fetch(`${API_URL}/api/gateway/verify-payment`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            document_id: currentDocId
+                        })
+                    });
+                    const verifyJson = await verifyRes.json();
+                    document.getElementById('workflow-result').innerText = `Payment Success! ${verifyJson.message}`;
+                    fetchReports();
+                },
+                "theme": {"color": "#4f46e5"}
+            };
+            var rzp = new Razorpay(options);
+            rzp.open();
+        }
+
+        async function fetchReports() {
+            const pnl = await (await fetch(`${API_URL}/api/reports/pnl`)).json();
+            document.getElementById('pnl-output').innerText = JSON.stringify(pnl, null, 2);
+            const bs = await (await fetch(`${API_URL}/api/reports/balance-sheet`)).json();
+            document.getElementById('bs-output').innerText = JSON.stringify(bs, null, 2);
+        }
+    </script>
+</body>
+</html>
