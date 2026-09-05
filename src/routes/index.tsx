@@ -11,6 +11,7 @@ import { Products } from '@/pages/master/products/Products'; // 👈 Import Prod
 import { Accounts } from '@/pages/master/accounts/Accounts';
 import { Journals } from '@/pages/master/journals/Journals';
 import { AnalyticAccounts } from '@/pages/master/analytics/AnalyticAccounts';
+import { Budgets } from '@/pages/master/budgets/Budgets';
 
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
@@ -125,10 +126,14 @@ export const router = createBrowserRouter([
     </AppShell>
   ),
 },
-  {
-    path: '/master/budgets',
-    ...page('Budgets', 'Manage budgets.'),
-  },
+{
+  path: '/master/budgets',
+  element: (
+    <AppShell>
+      <Budgets />
+    </AppShell>
+  ),
+},
   {
     path: '/sales/orders',
     ...page('Sales Orders', 'Manage sales orders.'),
