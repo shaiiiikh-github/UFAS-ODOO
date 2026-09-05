@@ -71,7 +71,7 @@ const mockOrders: SalesOrder[] = [
   },
 ];
 
-let orders = [...mockOrders];
+const orders = [...mockOrders];
 let nextOrderId = orders.length + 1;
 let nextItemId = 10;
 

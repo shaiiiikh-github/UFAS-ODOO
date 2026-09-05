@@ -29,7 +29,7 @@ export const useCreateCustomerInvoice = () => {
       queryClient.invalidateQueries({ queryKey: [CUSTOMER_INVOICES_QUERY_KEY] });
       toast.success('Invoice created successfully.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to create invoice.');
     },
   });
@@ -45,7 +45,7 @@ export const useUpdateCustomerInvoice = () => {
       queryClient.invalidateQueries({ queryKey: [CUSTOMER_INVOICES_QUERY_KEY, updated.id] });
       toast.success('Invoice updated successfully.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to update invoice.');
     },
   });
@@ -60,7 +60,7 @@ export const usePostCustomerInvoice = () => {
       queryClient.invalidateQueries({ queryKey: [CUSTOMER_INVOICES_QUERY_KEY, updated.id] });
       toast.success('Invoice posted.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to post invoice.');
     },
   });
@@ -75,7 +75,7 @@ export const useCancelCustomerInvoice = () => {
       queryClient.invalidateQueries({ queryKey: [CUSTOMER_INVOICES_QUERY_KEY, updated.id] });
       toast.success('Invoice cancelled.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to cancel invoice.');
     },
   });

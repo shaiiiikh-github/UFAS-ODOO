@@ -42,7 +42,7 @@ export const useCreateCustomerPayment = () => {
       queryClient.invalidateQueries({ queryKey: [ELIGIBLE_INVOICES_QUERY_KEY] });
       toast.success('Payment recorded successfully.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to record payment.');
     },
   });
@@ -59,7 +59,7 @@ export const useUpdateCustomerPayment = () => {
       queryClient.invalidateQueries({ queryKey: [ELIGIBLE_INVOICES_QUERY_KEY] });
       toast.success('Payment updated successfully.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to update payment.');
     },
   });
@@ -75,7 +75,7 @@ export const usePostCustomerPayment = () => {
       queryClient.invalidateQueries({ queryKey: [ELIGIBLE_INVOICES_QUERY_KEY] });
       toast.success('Payment posted.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to post payment.');
     },
   });
@@ -91,7 +91,7 @@ export const useCancelCustomerPayment = () => {
       queryClient.invalidateQueries({ queryKey: [ELIGIBLE_INVOICES_QUERY_KEY] });
       toast.success('Payment cancelled.');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to cancel payment.');
     },
   });

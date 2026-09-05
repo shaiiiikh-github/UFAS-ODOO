@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, X, Eye, Pencil, CheckCircle, XCircle, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
 import { CustomerInvoiceForm } from '@/components/forms/CustomerInvoiceForm';
-import { StatusBadge } from '@/components/common/StatusBadge';
+import { StatusBadge, type Status } from '@/components/common/StatusBadge';
 import { useCustomerInvoices, useCreateCustomerInvoice, useUpdateCustomerInvoice, usePostCustomerInvoice, useCancelCustomerInvoice } from '@/hooks/useCustomerInvoices';
 import { useContacts } from '@/hooks/useContacts';
 import type { CustomerInvoice, CustomerInvoiceInput, CustomerInvoiceStatus } from '@/types/customerInvoice';
@@ -161,28 +162,6 @@ export const CustomerInvoices: React.FC = () => {
     );
   }
 
-  const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }) => {
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-[#1a2332]">{title}</h2>
-            <button onClick={onClose} className="text-[#6b7280] hover:text-[#1a2332]">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          {children}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <>
       <PageHeader
@@ -282,7 +261,7 @@ export const CustomerInvoices: React.FC = () => {
                     {formatCurrency(inv.balanceDue)}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={inv.status.toLowerCase() as any} />
+                    <StatusBadge status={inv.status.toLowerCase() as Status} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -369,7 +348,7 @@ export const CustomerInvoices: React.FC = () => {
       )}
 
       {/* Create Modal */}
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Create Customer Invoice">
+      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Create Customer Invoice" size="wide">
         <CustomerInvoiceForm
           onSubmit={handleCreateSubmit}
           onCancel={() => setIsCreateModalOpen(false)}
@@ -378,7 +357,7 @@ export const CustomerInvoices: React.FC = () => {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Customer Invoice">
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Customer Invoice" size="wide">
         {selectedInvoice && (
           <CustomerInvoiceForm
             initialData={selectedInvoice}
@@ -393,7 +372,7 @@ export const CustomerInvoices: React.FC = () => {
       </Modal>
 
       {/* View Modal */}
-      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Invoice Details">
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Invoice Details" size="wide">
         {selectedInvoice && (
           <div className="space-y-4">
             <div className="flex justify-between items-start">
@@ -407,7 +386,7 @@ export const CustomerInvoices: React.FC = () => {
                   <div className="text-sm text-[#6b7280]">Sales Order: {selectedInvoice.salesOrderNumber}</div>
                 )}
               </div>
-              <StatusBadge status={selectedInvoice.status.toLowerCase() as any} />
+              <StatusBadge status={selectedInvoice.status.toLowerCase() as Status} />
             </div>
 
             <div>

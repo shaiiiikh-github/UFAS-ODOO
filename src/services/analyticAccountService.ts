@@ -11,7 +11,7 @@ const mockAnalyticAccounts: AnalyticAccount[] = [
   { id: '7', name: 'Marketing', type: 'expense' },
 ];
 
-let analyticAccounts = [...mockAnalyticAccounts];
+const analyticAccounts = [...mockAnalyticAccounts];
 let nextId = analyticAccounts.length + 1;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,6 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
     register,
     handleSubmit,
     control,
-    watch,
     setValue,
     formState: { errors },
   } = useForm<OrderFormData>({
@@ -70,9 +69,9 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
     name: 'items',
   });
 
-  const watchItems = watch('items');
+  const watchItems = useWatch({ control, name: 'items' });
 
-  const calculateItemTotal = (item: any) => {
+  const calculateItemTotal = (item: OrderFormData['items'][number]) => {
     const qty = item?.quantity || 0;
     const price = item?.unitPrice || 0;
     const tax = item?.taxRate || 0;
@@ -173,7 +172,10 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
                     <td className="px-3 py-2">
                       <select
                         {...register(`items.${index}.productId`)}
-                        onChange={(e) => handleProductChange(index, e.target.value)}
+                        onChange={(e) => {
+                          register(`items.${index}.productId`).onChange(e);
+                          handleProductChange(index, e.target.value);
+                        }}
                         className="w-full px-2 py-1 border border-[#e5e7eb] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1a2a3a]"
                       >
                         <option value="">Select product</option>

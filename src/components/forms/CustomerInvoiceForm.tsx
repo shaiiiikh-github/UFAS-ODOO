@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,6 @@ export const CustomerInvoiceForm: React.FC<CustomerInvoiceFormProps> = ({
     register,
     handleSubmit,
     control,
-    watch,
     setValue,
     formState: { errors },
   } = useForm<InvoiceFormData>({
@@ -76,8 +75,8 @@ export const CustomerInvoiceForm: React.FC<CustomerInvoiceFormProps> = ({
     name: 'items',
   });
 
-  const watchItems = watch('items');
-  const watchSalesOrderId = watch('salesOrderId');
+  const watchItems = useWatch({ control, name: 'items' });
+  const watchSalesOrderId = useWatch({ control, name: 'salesOrderId' });
 
   // When Sales Order changes, auto‑load customer
   React.useEffect(() => {
@@ -85,12 +84,17 @@ export const CustomerInvoiceForm: React.FC<CustomerInvoiceFormProps> = ({
       const selectedOrder = salesOrders.find(so => so.id === watchSalesOrderId);
       if (selectedOrder) {
         setValue('customerId', selectedOrder.customerId);
-        // Items could also be loaded here in a real implementation
+        setValue('items', selectedOrder.items.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          taxRate: item.taxRate || 0,
+        })));
       }
     }
   }, [watchSalesOrderId, salesOrders, setValue]);
 
-  const calculateItemTotal = (item: any) => {
+  const calculateItemTotal = (item: InvoiceFormData['items'][number]) => {
     const qty = item?.quantity || 0;
     const price = item?.unitPrice || 0;
     const tax = item?.taxRate || 0;
@@ -222,7 +226,10 @@ export const CustomerInvoiceForm: React.FC<CustomerInvoiceFormProps> = ({
                     <td className="px-3 py-2">
                       <select
                         {...register(`items.${index}.productId`)}
-                        onChange={(e) => handleProductChange(index, e.target.value)}
+                        onChange={(e) => {
+                          register(`items.${index}.productId`).onChange(e);
+                          handleProductChange(index, e.target.value);
+                        }}
                         className="w-full px-2 py-1 border border-[#e5e7eb] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1a2a3a]"
                       >
                         <option value="">Select product</option>

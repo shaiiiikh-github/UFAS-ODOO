@@ -1,4 +1,4 @@
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Trash2 } from 'lucide-react';
@@ -18,9 +18,9 @@ export function PurchaseOrderForm({ initialData, onSubmit, onCancel, isSubmittin
   const { data: contacts = [] } = useContacts({ type: 'ALL' });
   const { data: products = [] } = useProducts({});
   const vendors = contacts.filter(contact => contact.type === 'VENDOR' || contact.type === 'BOTH');
-  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { orderNumber: initialData?.orderNumber ?? '', orderDate: initialData?.orderDate ?? new Date().toISOString().slice(0, 10), vendorId: initialData?.vendorId ?? '', items: initialData?.items.map(({ productId, quantity, unitPrice, taxRate }) => ({ productId, quantity, unitPrice, taxRate })) ?? [{ productId: '', quantity: 1, unitPrice: 0, taxRate: 0 }], notes: initialData?.notes ?? '' } });
+  const { register, handleSubmit, control, setValue, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { orderNumber: initialData?.orderNumber ?? '', orderDate: initialData?.orderDate ?? new Date().toISOString().slice(0, 10), vendorId: initialData?.vendorId ?? '', items: initialData?.items.map(({ productId, quantity, unitPrice, taxRate }) => ({ productId, quantity, unitPrice, taxRate })) ?? [{ productId: '', quantity: 1, unitPrice: 0, taxRate: 0 }], notes: initialData?.notes ?? '' } });
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
-  const items = watch('items');
+  const items = useWatch({ control, name: 'items' });
   const subtotal = items.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0);
   const tax = items.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0) * (item.taxRate || 0), 0);
 

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, X, Eye, Pencil, ChevronLeft, ChevronRight, PieChart } from 'lucide-react';
+import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
 import { AnalyticAccountTypeBadge } from '@/components/common/AnalyticAccountTypeBadge';
@@ -129,28 +130,6 @@ export const AnalyticAccounts: React.FC = () => {
       </>
     );
   }
-
-  const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }) => {
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-[#1a2332]">{title}</h2>
-            <button onClick={onClose} className="text-[#6b7280] hover:text-[#1a2332]">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          {children}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <>

@@ -2,13 +2,14 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { RequireAuth } from '@/components/auth/RequireAuth';
 
 interface AppShellProps {
   children: ReactNode;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
-  return (
+  return <RequireAuth roles={['ADMIN', 'ACCOUNTANT']}>
     <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex-1 flex flex-col">
@@ -18,5 +19,5 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </main>
       </div>
     </div>
-  );
+  </RequireAuth>;
 };

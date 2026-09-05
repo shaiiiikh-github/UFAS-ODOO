@@ -35,7 +35,7 @@ export const LoginForm: React.FC = () => {
     try {
       await login(data);
       // Navigation will be handled in the Login page after success
-    } catch (error) {
+    } catch {
       setFormError('Unable to sign in. Please check your email and password.');
     }
   };

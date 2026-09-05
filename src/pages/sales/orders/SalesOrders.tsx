@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, X, Eye, Pencil, CheckCircle, XCircle, Trash2, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
+import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
 import { SalesOrderForm } from '@/components/forms/SalesOrderForm';
-import { StatusBadge } from '@/components/common/StatusBadge';
+import { StatusBadge, type Status } from '@/components/common/StatusBadge';
 import { useSalesOrders, useCreateSalesOrder, useUpdateSalesOrder, useConfirmSalesOrder, useCancelSalesOrder, useDeleteSalesOrder } from '@/hooks/useSalesOrders';
 import { useContacts } from '@/hooks/useContacts';
 import type { SalesOrder, SalesOrderInput, SalesOrderStatus } from '@/types/salesOrder';
@@ -174,28 +175,6 @@ export const SalesOrders: React.FC = () => {
     );
   }
 
-  const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }) => {
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-[#1a2332]">{title}</h2>
-            <button onClick={onClose} className="text-[#6b7280] hover:text-[#1a2332]">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          {children}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <>
       <PageHeader
@@ -289,7 +268,7 @@ export const SalesOrders: React.FC = () => {
                     {formatCurrency(order.totalAmount)}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={order.status.toLowerCase() as any} />
+                    <StatusBadge status={order.status.toLowerCase() as Status} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -383,7 +362,7 @@ export const SalesOrders: React.FC = () => {
       )}
 
       {/* Create Modal */}
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Create Sales Order">
+      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Create Sales Order" size="wide">
         <SalesOrderForm
           onSubmit={handleCreateSubmit}
           onCancel={() => setIsCreateModalOpen(false)}
@@ -392,7 +371,7 @@ export const SalesOrders: React.FC = () => {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Sales Order">
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Sales Order" size="wide">
         {selectedOrder && (
           <SalesOrderForm
             initialData={selectedOrder}
@@ -407,7 +386,7 @@ export const SalesOrders: React.FC = () => {
       </Modal>
 
       {/* View Modal */}
-      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Sales Order Details">
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Sales Order Details" size="wide">
         {selectedOrder && (
           <div className="space-y-4">
             <div className="flex justify-between items-start">
@@ -415,7 +394,7 @@ export const SalesOrders: React.FC = () => {
                 <div className="text-lg font-semibold text-[#1a2332]">{selectedOrder.orderNumber}</div>
                 <div className="text-sm text-[#6b7280]">Date: {new Date(selectedOrder.orderDate).toLocaleDateString('en-IN')}</div>
               </div>
-              <StatusBadge status={selectedOrder.status.toLowerCase() as any} />
+              <StatusBadge status={selectedOrder.status.toLowerCase() as Status} />
             </div>
 
             <div>

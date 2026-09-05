@@ -16,7 +16,7 @@ const mockAccounts: Account[] = [
   { id: '12', name: 'Commission Income', type: 'income' },
 ];
 
-let accounts = [...mockAccounts];
+const accounts = [...mockAccounts];
 let nextId = accounts.length + 1;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

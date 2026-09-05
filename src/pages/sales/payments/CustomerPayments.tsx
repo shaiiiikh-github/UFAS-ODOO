@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, X, Eye, Pencil, CheckCircle, XCircle, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react';
+import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
 import { CustomerPaymentForm } from '@/components/forms/CustomerPaymentForm';
-import { StatusBadge } from '@/components/common/StatusBadge';
+import { StatusBadge, type Status } from '@/components/common/StatusBadge';
 import {
   useCustomerPayments,
   useCreateCustomerPayment,
@@ -170,28 +171,6 @@ export const CustomerPayments: React.FC = () => {
     );
   }
 
-  const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }) => {
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-[#1a2332]">{title}</h2>
-            <button onClick={onClose} className="text-[#6b7280] hover:text-[#1a2332]">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          {children}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <>
       <PageHeader
@@ -300,7 +279,7 @@ export const CustomerPayments: React.FC = () => {
                   </td>
                   <td className="px-4 py-3 text-sm text-[#1a2332]">{payment.paymentMethod}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={payment.status.toLowerCase() as any} />
+                    <StatusBadge status={payment.status.toLowerCase() as Status} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -419,7 +398,7 @@ export const CustomerPayments: React.FC = () => {
                 <div className="text-lg font-semibold text-[#1a2332]">{selectedPayment.paymentNumber}</div>
                 <div className="text-sm text-[#6b7280]">Date: {new Date(selectedPayment.paymentDate).toLocaleDateString('en-IN')}</div>
               </div>
-              <StatusBadge status={selectedPayment.status.toLowerCase() as any} />
+              <StatusBadge status={selectedPayment.status.toLowerCase() as Status} />
             </div>
 
             <div>

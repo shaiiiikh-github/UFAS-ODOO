@@ -94,7 +94,7 @@ const mockInvoices: CustomerInvoice[] = [
   },
 ];
 
-let invoices = [...mockInvoices];
+const invoices = [...mockInvoices];
 let nextInvoiceIdCounter = invoices.length + 1;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

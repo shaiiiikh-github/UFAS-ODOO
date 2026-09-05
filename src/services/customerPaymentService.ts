@@ -107,7 +107,7 @@ const mockPayments: CustomerPayment[] = [
   },
 ];
 
-let payments = [...mockPayments];
+const payments = [...mockPayments];
 let nextPaymentId = payments.length + 1;
 let nextPaymentNumber = 3; // for PMT-0003
 
