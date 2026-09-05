@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Menu, Search, Bell, ChevronDown } from 'lucide-react';
+import React from 'react';
+import { Menu, Search, Bell } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Breadcrumbs } from './Breadcrumbs';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
@@ -9,7 +10,12 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language.startsWith('hi') ? 'hi' : 'en';
+  const setLang = (code: 'en' | 'hi') => {
+    i18n.changeLanguage(code);
+    localStorage.setItem('ufas-language', code);
+  };
 
   return (
     <header className="h-16 bg-white border-b border-[#e5e7eb] shadow-sm flex items-center px-4 md:px-6 gap-4 flex-shrink-0">
@@ -32,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
         <input
           type="text"
-          placeholder="Search..."
+          placeholder={t('search')}
           className="pl-8 pr-3 py-2 bg-[#f3f4f6] border border-transparent rounded-md text-sm focus:border-[#1a2a3a] focus:bg-white focus:outline-none transition-all duration-200 w-48 focus:w-56"
         />
       </div>
@@ -45,10 +51,10 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             { code: 'en', label: 'EN' },
             { code: 'hi', label: 'हि' },
             { code: 'gu', label: 'ગુ' },
-          ].map(({ code, label }) => (
+          ].filter(({ code }) => code !== 'gu').map(({ code, label }) => (
             <button
               key={code}
-              onClick={() => setLang(code as typeof lang)}
+              onClick={() => setLang(code as 'en' | 'hi')}
               className={cn(
                 'px-2 py-0.5 text-xs font-medium rounded transition-colors',
                 lang === code
@@ -66,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         {/* Notifications */}
         <button
           className="relative p-2 rounded-md hover:bg-[#f3f5f7] transition-colors"
-          aria-label="Notifications"
+          aria-label={t('notifications')}
         >
           <Bell className="h-4 w-4 text-[#6b7280]" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>

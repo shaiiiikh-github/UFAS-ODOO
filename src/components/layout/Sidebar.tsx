@@ -19,64 +19,66 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 
 const NAV_GROUPS = [
   {
-    group: 'Dashboard',
+    group: 'navigation:dashboard',
     items: [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+      { id: 'dashboard', label: 'navigation:dashboard', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
   {
-    group: 'Master Data',
+    group: 'navigation:masterData',
     items: [
-      { id: 'contacts', label: 'Contacts', icon: Users, path: '/master/contacts' },
-      { id: 'products', label: 'Products', icon: Package, path: '/master/products' },
-      { id: 'accounts', label: 'Chart of Accounts', icon: BookOpen, path: '/master/accounts' },
-      { id: 'journals', label: 'Journals', icon: Notebook, path: '/master/journals' },
-      { id: 'analytics', label: 'Analytic Accounts', icon: PieChart, path: '/master/analytics' },
-      { id: 'budgets', label: 'Budgets', icon: Coins, path: '/master/budgets' },
+      { id: 'contacts', label: 'navigation:contacts', icon: Users, path: '/master/contacts' },
+      { id: 'products', label: 'navigation:products', icon: Package, path: '/master/products' },
+      { id: 'accounts', label: 'navigation:accounts', icon: BookOpen, path: '/master/accounts' },
+      { id: 'journals', label: 'navigation:journals', icon: Notebook, path: '/master/journals' },
+      { id: 'analytics', label: 'navigation:analytics', icon: PieChart, path: '/master/analytics' },
+      { id: 'budgets', label: 'navigation:budgets', icon: Coins, path: '/master/budgets' },
     ],
   },
   {
-    group: 'Sales',
+    group: 'navigation:sales',
     items: [
-      { id: 'sales-orders', label: 'Sales Orders', icon: ShoppingCart, path: '/sales/orders' },
-      { id: 'sales-invoices', label: 'Customer Invoices', icon: FileText, path: '/sales/invoices' },
-      { id: 'sales-payments', label: 'Customer Payments', icon: CreditCard, path: '/sales/payments' },
+      { id: 'sales-orders', label: 'navigation:salesOrders', icon: ShoppingCart, path: '/sales/orders' },
+      { id: 'sales-invoices', label: 'navigation:customerInvoices', icon: FileText, path: '/sales/invoices' },
+      { id: 'sales-payments', label: 'navigation:customerPayments', icon: CreditCard, path: '/sales/payments' },
     ],
   },
   {
-    group: 'Purchases',
+    group: 'navigation:purchases',
     items: [
-      { id: 'purch-orders', label: 'Purchase Orders', icon: Truck, path: '/purchases/orders' },
-      { id: 'purch-bills', label: 'Vendor Bills', icon: FileText, path: '/purchases/bills' },
-      { id: 'purch-payments', label: 'Vendor Payments', icon: CreditCard, path: '/purchases/payments' },
+      { id: 'purch-orders', label: 'navigation:purchaseOrders', icon: Truck, path: '/purchases/orders' },
+      { id: 'purch-bills', label: 'navigation:vendorBills', icon: FileText, path: '/purchases/bills' },
+      { id: 'purch-payments', label: 'navigation:vendorPayments', icon: CreditCard, path: '/purchases/payments' },
     ],
   },
   {
-    group: 'Accounting',
+    group: 'navigation:accounting',
     items: [
-      { id: 'journal-entries', label: 'Journal Entries', icon: BookOpen, path: '/accounting/journal-entries' },
-      { id: 'ledgers', label: 'Ledgers', icon: Layers, path: '/accounting/ledgers' },
+      { id: 'journal-entries', label: 'navigation:journalEntries', icon: BookOpen, path: '/accounting/journal-entries' },
+      { id: 'ledgers', label: 'navigation:ledgers', icon: Layers, path: '/accounting/ledgers' },
     ],
   },
   {
-    group: 'Reports',
+    group: 'navigation:reports',
     items: [
-      { id: 'report-pl', label: 'Profit & Loss', icon: BarChart2, path: '/reports/profit-loss' },
-      { id: 'report-bs', label: 'Balance Sheet', icon: FileSpreadsheet, path: '/reports/balance-sheet' },
-      { id: 'report-budget', label: 'Budget Report', icon: PieChart, path: '/reports/budget' },
+      { id: 'report-pl', label: 'navigation:profitLoss', icon: BarChart2, path: '/reports/profit-loss' },
+      { id: 'report-bs', label: 'navigation:balanceSheet', icon: FileSpreadsheet, path: '/reports/balance-sheet' },
+      { id: 'report-budget', label: 'navigation:budgetReport', icon: PieChart, path: '/reports/budget' },
     ],
   },
 ];
 
 const BOTTOM_NAV = [
-  { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-  { id: 'help', label: 'Help', icon: HelpCircle, path: '/help' },
+  { id: 'settings', label: 'common:settings', icon: Settings, path: '/settings' },
+  { id: 'help', label: 'navigation:help', icon: HelpCircle, path: '/help' },
 ];
 
 export const Sidebar: React.FC = () => {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
 
@@ -89,7 +91,7 @@ export const Sidebar: React.FC = () => {
     return (
       <NavLink
         to={item.path}
-        className={({ isActive }) =>
+        className={() =>
           cn(
             'flex items-center gap-3 px-3 py-2.5 rounded-md text-[0.85rem] font-medium transition-all duration-150',
             isActive
@@ -99,7 +101,7 @@ export const Sidebar: React.FC = () => {
         }
       >
         <Icon className="h-4 w-4 flex-shrink-0" />
-        {!collapsed && <span>{item.label}</span>}
+        {!collapsed && <span>{t(item.label)}</span>}
       </NavLink>
     );
   };
@@ -134,7 +136,7 @@ export const Sidebar: React.FC = () => {
             <div key={group.group} className="mb-1">
               {!collapsed && (
                 <div className="text-[0.6rem] font-semibold uppercase tracking-widest text-[#9ca3af] px-3 py-1.5">
-                  {group.group}
+                  {t(group.group)}
                 </div>
               )}
               {group.items.map((item) => (
