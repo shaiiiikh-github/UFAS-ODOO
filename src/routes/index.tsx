@@ -20,6 +20,7 @@ import { VendorPayments } from '@/pages/purchases/payments/VendorPayments';
 import { JournalEntries } from '@/pages/accounting/journal-entries/JournalEntries';
 import { Ledgers } from '@/pages/accounting/ledgers/Ledgers';
 import { ProfitLoss } from '@/pages/reports/profit-loss/ProfitLoss';
+import { BalanceSheet } from '@/pages/reports/balance-sheet/BalanceSheet';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -211,7 +212,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/reports/balance-sheet',
-    ...page('Balance Sheet', 'View balance sheet report.'),
+    element: (
+      <AppShell>
+        <BalanceSheet />
+      </AppShell>
+    ),
   },
   {
     path: '/reports/budget',
