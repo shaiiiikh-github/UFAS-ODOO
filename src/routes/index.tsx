@@ -9,6 +9,7 @@ import { Dashboard } from '@/pages/dashboard/Dashboard';
 import { Contacts } from '@/pages/master/contacts/Contacts';
 import { Products } from '@/pages/master/products/Products'; // 👈 Import Products
 import { Accounts } from '@/pages/master/accounts/Accounts';
+import { Journals } from '@/pages/master/journals/Journals';
 
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
@@ -107,10 +108,14 @@ export const router = createBrowserRouter([
     </AppShell>
   ),
 },
-  {
-    path: '/master/journals',
-    ...page('Journals', 'Manage journal entries.'),
-  },
+{
+  path: '/master/journals',
+  element: (
+    <AppShell>
+      <Journals />
+    </AppShell>
+  ),
+},
   {
     path: '/master/analytics',
     ...page('Analytic Accounts', 'Manage analytic accounts.'),
