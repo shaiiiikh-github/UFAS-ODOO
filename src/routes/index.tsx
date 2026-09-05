@@ -22,6 +22,7 @@ import { Ledgers } from '@/pages/accounting/ledgers/Ledgers';
 import { ProfitLoss } from '@/pages/reports/profit-loss/ProfitLoss';
 import { BalanceSheet } from '@/pages/reports/balance-sheet/BalanceSheet';
 import { BudgetReport } from '@/pages/reports/budget/BudgetReport';
+import { PartnerPortal } from '@/pages/portal/PartnerPortal';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -226,6 +227,22 @@ export const router = createBrowserRouter([
         <BudgetReport />
       </AppShell>
     ),
+  },
+  {
+    path: '/portal',
+    element: <PartnerPortal />,
+  },
+  {
+    path: '/portal/invoices',
+    element: <PartnerPortal />,
+  },
+  {
+    path: '/portal/orders',
+    element: <PartnerPortal />,
+  },
+  {
+    path: '/portal/payments',
+    element: <PartnerPortal />,
   },
   {
     path: '/settings',
