@@ -17,6 +17,7 @@ import { CustomerInvoices } from '@/pages/sales/invoices/CustomerInvoices';
 import { PurchaseOrders } from '@/pages/purchases/orders/PurchaseOrders';
 import { VendorBills } from '@/pages/purchases/bills/VendorBills';
 import { VendorPayments } from '@/pages/purchases/payments/VendorPayments';
+import { JournalEntries } from '@/pages/accounting/journal-entries/JournalEntries';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -184,7 +185,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/accounting/journal-entries',
-    ...page('Journal Entries', 'Manage journal entries.'),
+    element: (
+      <AppShell>
+        <JournalEntries />
+      </AppShell>
+    ),
   },
   {
     path: '/accounting/ledgers',
