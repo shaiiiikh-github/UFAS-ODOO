@@ -1,0 +1,1 @@
+import { useQuery } from '@tanstack/react-query'; import { profitLossService } from '@/services/profitLossService'; import type { ProfitLossFilters } from '@/types/profitLoss'; export const useProfitLoss = (filters?: ProfitLossFilters) => useQuery({ queryKey: ['profitLoss', filters], queryFn: () => profitLossService.getProfitLoss(filters) });
