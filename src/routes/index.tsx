@@ -14,6 +14,7 @@ import { AnalyticAccounts } from '@/pages/master/analytics/AnalyticAccounts';
 import { Budgets } from '@/pages/master/budgets/Budgets';
 import { SalesOrders } from '@/pages/sales/orders/SalesOrders';
 import { CustomerInvoices } from '@/pages/sales/invoices/CustomerInvoices';
+import { PurchaseOrders } from '@/pages/purchases/orders/PurchaseOrders';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -157,7 +158,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/purchases/orders',
-    ...page('Purchase Orders', 'Manage purchase orders.'),
+    element: (
+      <AppShell>
+        <PurchaseOrders />
+      </AppShell>
+    ),
   },
   {
     path: '/purchases/bills',
