@@ -16,6 +16,7 @@ import { SalesOrders } from '@/pages/sales/orders/SalesOrders';
 import { CustomerInvoices } from '@/pages/sales/invoices/CustomerInvoices';
 import { PurchaseOrders } from '@/pages/purchases/orders/PurchaseOrders';
 import { VendorBills } from '@/pages/purchases/bills/VendorBills';
+import { VendorPayments } from '@/pages/purchases/payments/VendorPayments';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -175,7 +176,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/purchases/payments',
-    ...page('Vendor Payments', 'Manage vendor payments.'),
+    element: (
+      <AppShell>
+        <VendorPayments />
+      </AppShell>
+    ),
   },
   {
     path: '/accounting/journal-entries',
