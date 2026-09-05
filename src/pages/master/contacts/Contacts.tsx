@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Plus, Search, X, Eye, Pencil, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,6 @@ import { useContacts, useCreateContact, useUpdateContact } from '@/hooks/useCont
 import type { Contact, ContactInput, ContactType } from '@/types/contact';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -23,7 +21,6 @@ export const Contacts: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
-  const navigate = useNavigate();
 
   const filters = useMemo(() => ({
     search: search.trim() || undefined,

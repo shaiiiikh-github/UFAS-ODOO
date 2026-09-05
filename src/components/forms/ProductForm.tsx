@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import type { Product, ProductInput, ProductType } from '@/types/product';
+import type { Product, ProductInput } from '@/types/product';
 
 // Schema with required fields (no defaults, to keep type inference clean)
 const productSchema = z.object({

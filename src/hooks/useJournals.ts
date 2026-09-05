@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { journalService } from '@/services/journalService';
-import type { Journal, JournalInput, JournalFilters } from '@/types/journal';
+import type { JournalInput, JournalFilters } from '@/types/journal';
 import { toast } from 'sonner';
 
 export const JOURNALS_QUERY_KEY = 'journals';

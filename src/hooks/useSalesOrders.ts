@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesOrderService } from '@/services/salesOrderService';
-import type { SalesOrder, SalesOrderInput, SalesOrderFilters } from '@/types/salesOrder';
+import type { SalesOrderInput, SalesOrderFilters } from '@/types/salesOrder';
 import { toast } from 'sonner';
 
 export const SALES_ORDERS_QUERY_KEY = 'salesOrders';

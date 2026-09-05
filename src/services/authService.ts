@@ -4,6 +4,7 @@ import type { LoginCredentials, AuthResponse, User } from '@/types/auth';
 // We do NOT hardcode credentials or fake success.
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    void credentials;
     // Simulate API call – will be replaced with real fetch to Flask
     // For now, we throw an error to indicate "not implemented" so we can test error state.
     // Actually, we want to prepare for future integration, but we also need to demonstrate
@@ -19,6 +20,7 @@ export const authService = {
 
   // This can be used later to check if token is valid
   validateToken: async (token: string): Promise<User | null> => {
+    void token;
     return null;
   },
 };

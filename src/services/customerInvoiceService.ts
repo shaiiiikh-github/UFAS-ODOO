@@ -22,7 +22,6 @@ const mockSalesOrders = [
   { id: '2', orderNumber: 'SO-1002', customerId: '3', status: 'Draft' }, // not confirmed
 ];
 
-let nextInvoiceId = 10;
 let nextItemId = 20;
 
 const generateInvoiceNumber = () => {

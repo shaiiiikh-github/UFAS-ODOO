@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customerInvoiceService } from '@/services/customerInvoiceService';
-import type { CustomerInvoice, CustomerInvoiceInput, CustomerInvoiceFilters } from '@/types/customerInvoice';
+import type { CustomerInvoiceInput, CustomerInvoiceFilters } from '@/types/customerInvoice';
 import { toast } from 'sonner';
 
 export const CUSTOMER_INVOICES_QUERY_KEY = 'customerInvoices';
