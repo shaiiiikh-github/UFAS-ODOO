@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urban Furniture - Integrated ERP System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans" x-data="erpApp()">
+    
+    <!-- Notification Toast -->
+    <div x-show="toast.show" x-transition class="fixed top-4 right-4 z-50 p-4 rounded-xl shadow-xl text-white font-medium text-sm flex items-center space-x-2" :class="toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'" style="display: none;">
+        <span x-text="toast.message"></span>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-wide flex items-center gap-2">🪑 Urban Furniture ERP</h1>
+            <span class="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full font-semibold">Production Engine Active</span>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Navigation Tabs -->
+        <div class="flex space-x-2 border-b border-slate-200 mb-8 pb-3 overflow-x-auto">
+            <template x-for="t in ['Dashboard', 'Transactions', 'Master Data', 'Budgeting']">
+                <button @click="tab = t" :class="tab === t ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'" class="px-5 py-2.5 rounded-xl font-semibold text-sm transition whitespace-nowrap" x-text="t"></button>
+            </template>
+        </div>
+
+        <!-- 1. DASHBOARD & FINANCIAL REPORTS -->
+        <div x-show="tab === 'Dashboard'" class="space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-slate-900">Executive Financial Overview</h2>
+                <button @click="fetchReports()" class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-100 transition flex items-center gap-2">🔄 Refresh Data</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Balance Sheet -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-base font-bold text-slate-900 mb-4 border-b pb-3">Balance Sheet</h3>
+                    <ul class="space-y-3 text-sm">
+                        <template x-for="(val, key) in balanceSheet" :key="key">
+                            <li class="flex justify-between border-b border-slate-100 pb-2">
+                                <span class="font-medium text-slate-600" x-text="key"></span>
+                                <span class="font-bold font-mono" x-text="'₹' + val"></span>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+                <!-- Profit & Loss -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-base font-bold text-slate-900 mb-4 border-b pb-3">Profit & Loss Statement</h3>
+                    <ul class="space-y-3 text-sm">
+                        <template x-for="(val, key) in pnl" :key="key">
+                            <li class="flex justify-between border-b border-slate-100 pb-2" :class="key === 'Net Profit' ? 'text-indigo-600 text-base font-bold mt-3' : ''">
+                                <span class="font-medium text-slate-600" x-text="key"></span>
+                                <span class="font-bold font-mono" x-text="'₹' + val"></span>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+                <!-- Chart of Accounts Live Balances -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+                    <div class="flex items-center justify-between mb-4 border-b pb-3">
+                        <h3 class="text-base font-bold text-slate-900">Live Chart of Accounts</h3>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Auto-calculated</span>
+                    </div>
+                    <table class="w-full text-xs text-left">
+                        <thead><tr class="text-slate-400 uppercase tracking-wider border-b"><th class="py-2">Account</th><th>Type</th><th class="text-right">Balance</th></tr></thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <template x-for="a in accountBalances" :key="a.id">
+                                <tr>
+                                    <td class="py-2 font-medium" x-text="a.code + ' · ' + a.name"></td>
+                                    <td class="py-2" x-text="a.type"></td>
+                                    <td class="py-2 text-right font-mono font-bold" x-text="'₹' + a.balance"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Budget Variance -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+                    <h3 class="text-base font-bold text-slate-900 mb-4 border-b pb-3">Budget Variance Report</h3>
+                    <table class="w-full text-xs text-left">
+                        <thead><tr class="text-slate-400 uppercase tracking-wider pb-2 border-b"><th>Budget</th><th>Planned</th><th>Actual</th><th>Var</th></tr></thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <template x-for="b in budgetReport">
+                                <tr>
+                                    <td class="py-3 font-medium text-slate-800" x-text="b.name"></td>
+                                    <td class="py-3 font-mono" x-text="'₹'+b.planned"></td>
+                                    <td class="py-3 font-mono text-rose-600" x-text="'₹'+b.actual"></td>
+                                    <td class="py-3 font-mono font-bold" :class="Number(b.variance) >= 0 ? 'text-emerald-600' : 'text-rose-600'" x-text="'₹'+b.variance"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. TRANSACTIONS (Procure-to-Pay & Order-to-Cash) -->
+        <div x-show="tab === 'Transactions'" class="space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Create Order / Invoice Document</h3>
+                <form @submit.prevent="createDocument" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <select x-model="docForm.type" class="px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 font-medium" required>
+                        <option value="Purchase Order">Purchase Order (PO)</option>
+                        <option value="Vendor Bill">Vendor Bill</option>
+                        <option value="Sales Order">Sales Order (SO)</option>
+                        <option value="Customer Invoice">Customer Invoice</option>
+                    </select>
+                    <select x-model="docForm.contact_id" class="px-4 py-2.5 border border-slate-200 rounded-xl text-sm" required>
+                        <option value="">-- Select Partner --</option>
+                        <template x-for="c in contacts"><option :value="c.id" x-text="c.name + ' (' + c.type + ')'"></option></template>
+                    </select>
+                    <select x-model="docLine.product_id" class="px-4 py-2.5 border border-slate-200 rounded-xl text-sm" required>
+                        <option value="">-- Select Product --</option>
+                        <template x-for="p in products"><option :value="p.id" x-text="p.name + ' (Stock: ' + p.stock_quantity + ')'"></option></template>
+                    </select>
+                    <select x-model="docLine.analytic_account_id" class="px-4 py-2.5 border border-slate-200 rounded-xl text-sm">
+                        <option value="">-- Analytic Account (Optional) --</option>
+                        <template x-for="a in analytics"><option :value="a.id" x-text="a.name"></option></template>
+                    </select>
+                    <input type="number" x-model.number="docLine.quantity" placeholder="Quantity" class="px-4 py-2.5 border border-slate-200 rounded-xl text-sm" min="1" required>
+                    <input type="number" step="0.01" x-model.number="docLine.unit_price" placeholder="Unit Price (₹)" class="px-4 py-2.5 border border-slate-200 rounded-xl text-sm" required>
+                    <button type="submit" class="md:col-span-2 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition shadow-sm">Save Document as Draft</button>
+                </form>
+            </div>
+
+            <!-- Transaction Records Table -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Transaction Lifecycle Management</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 text-slate-400 uppercase text-xs">
+                            <tr><th class="p-3 rounded-l-xl">Type</th><th class="p-3">Status</th><th class="p-3">Total Amount</th><th class="p-3 rounded-r-xl text-right">Actions</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <template x-for="d in documents">
+                                <tr class="hover:bg-slate-50/50 transition">
+                                    <td class="p-3 font-semibold text-slate-700" x-text="d.type"></td>
+                                    <td class="p-3">
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-bold" 
+                                              :class="{'bg-slate-100 text-slate-600': d.status==='Draft', 'bg-amber-100 text-amber-700': d.status==='Confirmed' || d.status==='Partially Paid', 'bg-emerald-100 text-emerald-700': d.status==='Paid'}" 
+                                              x-text="d.status"></span>
+                                    </td>
+                                    <td class="p-3 font-mono font-semibold" x-text="'₹'+d.total"></td>
+                                    <td class="p-3 text-right space-x-2">
+                                        <template x-if="(d.type==='Purchase Order' || d.type==='Sales Order') && d.status==='Draft'">
+                                            <button @click="convertDoc(d.id)" class="text-xs bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-bold transition">Convert to Bill/Invoice</button>
+                                        </template>
+                                        <template x-if="(d.type==='Vendor Bill' || d.type==='Customer Invoice') && d.status==='Draft'">
+                                            <button @click="confirmDoc(d.id)" class="text-xs bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-100 font-bold transition">Post to Ledger & Stock</button>
+                                        </template>
+                                        <template x-if="(d.type==='Vendor Bill' || d.type==='Customer Invoice') && (d.status==='Confirmed' || d.status==='Partially Paid')">
+                                            <button @click="payDoc(d.id)" class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg hover:bg-emerald-100 font-bold transition">Register Payment</button>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. MASTER DATA -->
+        <div x-show="tab === 'Master Data'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Contacts -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Contacts Master</h3>
+                <form @submit.prevent="createContact" class="grid grid-cols-2 gap-3 mb-4">
+                    <input type="text" x-model="contactForm.name" placeholder="Full Name / Company" class="col-span-2 px-4 py-2 border rounded-xl text-sm" required>
+                    <select x-model="contactForm.type" class="px-4 py-2 border rounded-xl text-sm"><option value="Customer">Customer</option><option value="Vendor">Vendor</option><option value="Both">Both</option></select>
+                    <input type="text" x-model="contactForm.city" placeholder="City" class="px-4 py-2 border rounded-xl text-sm">
+                    <input type="text" x-model="contactForm.state" placeholder="State" class="px-4 py-2 border rounded-xl text-sm">
+                    <input type="text" x-model="contactForm.pincode" placeholder="Pincode" class="px-4 py-2 border rounded-xl text-sm">
+                    <button type="submit" class="col-span-2 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition">Save Contact</button>
+                </form>
+            </div>
+            
+            <!-- Products -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Products & Stock Master</h3>
+                <form @submit.prevent="createProduct" class="grid grid-cols-2 gap-3 mb-4">
+                    <input type="text" x-model="productForm.name" placeholder="Product Name" class="col-span-2 px-4 py-2 border rounded-xl text-sm" required>
+                    <select x-model="productForm.type" class="px-4 py-2 border rounded-xl text-sm"><option value="Goods">Goods</option><option value="Service">Service</option><option value="Combo">Combo</option></select>
+                    <input type="number" x-model.number="productForm.sales_price" placeholder="Sales Price (₹)" class="px-4 py-2 border rounded-xl text-sm" required>
+                    <input type="number" x-model.number="productForm.cost" placeholder="Cost Price (₹)" class="px-4 py-2 border rounded-xl text-sm" required>
+                    <input type="number" x-model.number="productForm.stock_quantity" placeholder="Opening Stock Qty" class="px-4 py-2 border rounded-xl text-sm" required>
+                    <button type="submit" class="col-span-2 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition">Save Product</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 4. BUDGETING -->
+        <div x-show="tab === 'Budgeting'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Create Analytic Account</h3>
+                <form @submit.prevent="createAnalytic" class="space-y-3">
+                    <input type="text" x-model="analyticForm.name" placeholder="Department / Division (e.g., Office Furniture)" class="w-full px-4 py-2.5 border rounded-xl text-sm" required>
+                    <select x-model="analyticForm.type" class="w-full px-4 py-2.5 border rounded-xl text-sm"><option value="Expense">Expense</option><option value="Income">Income</option></select>
+                    <button type="submit" class="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold">Save Analytic Account</button>
+                </form>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Allocate Budget</h3>
+                <form @submit.prevent="createBudget" class="grid grid-cols-2 gap-3">
+                    <input type="text" x-model="budgetForm.name" placeholder="Budget Name" class="col-span-2 px-4 py-2 border rounded-xl text-sm" required>
+                    <select x-model="budgetForm.analytic_account_id" class="col-span-2 px-4 py-2 border rounded-xl text-sm" required>
+                        <option value="">-- Select Analytic Account --</option>
+                        <template x-for="a in analytics"><option :value="a.id" x-text="a.name"></option></template>
+                    </select>
+                    <input type="number" x-model.number="budgetForm.planned_amount" placeholder="Planned Amount (₹)" class="col-span-2 px-4 py-2 border rounded-xl text-sm" required>
+                    <input type="date" x-model="budgetForm.period_start" class="px-4 py-2 border rounded-xl text-sm" required>
+                    <input type="date" x-model="budgetForm.period_end" class="px-4 py-2 border rounded-xl text-sm" required>
+                    <input type="text" x-model="budgetForm.responsible_person" placeholder="Responsible Person" class="col-span-2 px-4 py-2 border rounded-xl text-sm" required>
+                    <button type="submit" class="col-span-2 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold">Define Budget</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- Payment Modal -->
+    <div x-show="showPaymentModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50" style="display: none;">
+        <div class="bg-white p-6 rounded-2xl w-96 shadow-2xl space-y-4">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900">Register Payment</h3>
+                    <p class="text-xs text-slate-500 mt-1" x-text="paymentForm.doc_type"></p>
+                </div>
+                <button @click="showPaymentModal = false" class="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-50 rounded-xl p-3">
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Invoice / Bill Total</div>
+                    <div class="font-mono font-bold mt-1" x-text="'₹' + paymentForm.total"></div>
+                </div>
+                <div class="bg-amber-50 rounded-xl p-3">
+                    <div class="text-[10px] uppercase font-bold text-amber-600">Outstanding</div>
+                    <div class="font-mono font-bold mt-1 text-amber-700" x-text="'₹' + paymentForm.outstanding"></div>
+                </div>
+            </div>
+            <label class="block text-xs font-bold text-slate-600">Payment Amount</label>
+            <input type="number" min="0.01" step="0.01" :max="paymentForm.outstanding" x-model.number="paymentForm.amount" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium" required>
+            <label class="block text-xs font-bold text-slate-600">Payment Journal</label>
+            <select x-model="paymentForm.journal_id" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium">
+                <option value="">-- Select Bank or Cash --</option>
+                <template x-for="j in journals" :key="j.id"><option :value="j.id" x-text="j.name + ' (' + j.type + ')'" ></option></template>
+            </select>
+            <input type="text" x-model="paymentForm.reference" placeholder="Payment reference (optional)" maxlength="100" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm">
+            <div class="flex justify-end space-x-2 pt-2">
+                <button @click="showPaymentModal = false" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl font-medium">Cancel</button>
+                <button @click="submitPayment" class="px-4 py-2 text-sm bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition">Confirm Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script with Absolute API Base URL -->
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+
+        function erpApp() {
+            return {
+                tab: 'Dashboard', toast: { show: false, message: '', type: 'success' },
+                balanceSheet: {}, pnl: {}, budgetReport: [], accountBalances: [],
+                contacts: [], products: [], documents: [], analytics: [], journals: [],
+                
+                contactForm: { name: '', type: 'Customer', city: '', state: '', pincode: '' },
+                productForm: { name: '', type: 'Goods', sales_price: 0, cost: 0, stock_quantity: 10 },
+                docForm: { contact_id: '', type: 'Purchase Order', date: new Date().toISOString().split('T')[0] },
+                docLine: { product_id: '', quantity: 1, unit_price: 0, analytic_account_id: '' },
+                analyticForm: { name: '', type: 'Expense' },
+                budgetForm: { name: '', period_start: '', period_end: '', responsible_person: '', planned_amount: 0, analytic_account_id: '' },
+                
+                showPaymentModal: false,
+                paymentForm: { doc_id: '', journal_id: '', amount: 0, total: 0, outstanding: 0, doc_type: '', reference: '' },
+
+                async init() {
+                    await this.fetchAll();
+                },
+                showToast(msg, type='success') {
+                    this.toast = { show: true, message: msg, type: type };
+                    setTimeout(() => { this.toast.show = false; }, 3500);
+                },
+                async fetchAll() {
+                    try {
+                        let r = await Promise.all([
+                            fetch(`${API_BASE}/api/contacts/`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/products/`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/documents/`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/analytics/`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/journals/`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/accounts/`).then(this.parseResponse)
+                        ]);
+                        this.contacts = r[0];
+                        this.products = r[1];
+                        this.documents = r[2];
+                        this.analytics = r[3];
+                        this.journals = r[4].filter(j => j.type === 'Bank' || j.type === 'Cash');
+                        this.accountBalances = r[5];
+                        await this.fetchReports();
+                    } catch(e) {
+                        console.error("Error fetching data:", e);
+                        this.showToast(e.message || 'Unable to load data.', 'error');
+                    }
+                },
+                async parseResponse(res) {
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || `Request failed (${res.status})`);
+                    }
+                    return res.json();
+                },
+                async fetchReports() {
+                    try {
+                        const [balance, pnl, budget, accounts] = await Promise.all([
+                            fetch(`${API_BASE}/api/reports/balance-sheet`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/reports/pnl`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/reports/budget`).then(this.parseResponse),
+                            fetch(`${API_BASE}/api/reports/account-balances`).then(this.parseResponse)
+                        ]);
+                        this.balanceSheet = balance;
+                        this.pnl = pnl;
+                        this.budgetReport = budget;
+                        this.accountBalances = accounts;
+                    } catch(e) {
+                        console.error("Error fetching reports:", e);
+                        this.showToast(e.message || 'Unable to calculate reports.', 'error');
+                    }
+                },
+                async apiCall(url, data, successMsg) {
+                    let res = await fetch(`${API_BASE}${url}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                    if (res.ok) { this.showToast(successMsg); await this.fetchAll(); } 
+                    else { 
+                        let errText = await res.text();
+                        this.showToast('Action Failed: Check console.', 'error'); 
+                        console.error(errText); 
+                    }
+                },
+                createContact() { this.apiCall('/api/contacts/', this.contactForm, 'Contact created successfully!'); },
+                createProduct() { this.apiCall('/api/products/', this.productForm, 'Product created successfully!'); },
+                createAnalytic() { this.apiCall('/api/analytics/', this.analyticForm, 'Analytic Account created!'); },
+                createBudget() { this.apiCall('/api/budgets/', this.budgetForm, 'Budget successfully allocated!'); },
+                createDocument() {
+                    let payload = { 
+                        ...this.docForm, 
+                        lines: [{ product_id: this.docLine.product_id, quantity: this.docLine.quantity, unit_price: this.docLine.unit_price, analytic_account_id: this.docLine.analytic_account_id || null }] 
+                    };
+                    this.apiCall('/api/documents/', payload, 'Document saved as Draft!');
+                },
+                convertDoc(id) { this.apiCall(`/api/documents/${id}/convert`, {}, 'Order converted successfully!'); },
+                confirmDoc(id) { this.apiCall(`/api/documents/${id}/confirm`, {}, 'Posted to Ledger & Inventory updated!'); },
+                payDoc(id) {
+                    const doc = this.documents.find(d => d.id === id);
+                    if (!doc) return this.showToast('Document not found.', 'error');
+                    this.paymentForm = {
+                        doc_id: id,
+                        journal_id: '',
+                        amount: Number(doc.outstanding_amount),
+                        total: Number(doc.total),
+                        outstanding: Number(doc.outstanding_amount),
+                        doc_type: doc.type,
+                        reference: ''
+                    };
+                    this.showPaymentModal = true;
+                },
+                async submitPayment() {
+                    if(!this.paymentForm.journal_id) return this.showToast("Please select a Bank or Cash journal", 'error');
+                    const amount = Number(this.paymentForm.amount);
+                    const outstanding = Number(this.paymentForm.outstanding);
+                    if (!Number.isFinite(amount) || amount <= 0) return this.showToast('Enter a valid payment amount.', 'error');
+                    if (amount > outstanding) return this.showToast('Payment cannot exceed the outstanding amount.', 'error');
+                    try {
+                        const res = await fetch(`${API_BASE}/api/payments/`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                document_id: this.paymentForm.doc_id,
+                                journal_id: this.paymentForm.journal_id,
+                                payment_date: new Date().toISOString().split('T')[0],
+                                amount: amount.toFixed(2),
+                                reference: this.paymentForm.reference || null
+                            })
+                        });
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.detail || 'Payment failed.');
+                        }
+                        const result = await res.json();
+                        this.showPaymentModal = false;
+                        this.showToast(`Payment ₹${result.payment_amount} posted. Ledger and reports updated automatically.`);
+                        await this.fetchAll();
+                    } catch (e) {
+                        console.error(e);
+                        this.showToast(e.message, 'error');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
