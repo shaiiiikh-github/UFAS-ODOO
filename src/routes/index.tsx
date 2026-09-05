@@ -21,6 +21,7 @@ import { JournalEntries } from '@/pages/accounting/journal-entries/JournalEntrie
 import { Ledgers } from '@/pages/accounting/ledgers/Ledgers';
 import { ProfitLoss } from '@/pages/reports/profit-loss/ProfitLoss';
 import { BalanceSheet } from '@/pages/reports/balance-sheet/BalanceSheet';
+import { BudgetReport } from '@/pages/reports/budget/BudgetReport';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -220,7 +221,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/reports/budget',
-    ...page('Budget Report', 'View budget report.'),
+    element: (
+      <AppShell>
+        <BudgetReport />
+      </AppShell>
+    ),
   },
   {
     path: '/settings',
