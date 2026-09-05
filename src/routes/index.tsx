@@ -19,6 +19,7 @@ import { VendorBills } from '@/pages/purchases/bills/VendorBills';
 import { VendorPayments } from '@/pages/purchases/payments/VendorPayments';
 import { JournalEntries } from '@/pages/accounting/journal-entries/JournalEntries';
 import { Ledgers } from '@/pages/accounting/ledgers/Ledgers';
+import { ProfitLoss } from '@/pages/reports/profit-loss/ProfitLoss';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -202,7 +203,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/reports/profit-loss',
-    ...page('Profit & Loss', 'View profit and loss report.'),
+    element: (
+      <AppShell>
+        <ProfitLoss />
+      </AppShell>
+    ),
   },
   {
     path: '/reports/balance-sheet',
