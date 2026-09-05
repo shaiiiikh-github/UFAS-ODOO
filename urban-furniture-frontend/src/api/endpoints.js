@@ -62,6 +62,12 @@ export const listDocumentPayments = (id) =>
 export const createPayment = (payload) => apiClient.post('/api/payments/', payload).then((r) => r.data);
 export const listPayments = () => apiClient.get('/api/payments/').then((r) => r.data);
 
+// ---------- Razorpay ----------
+export const createRazorpayOrder = (documentId) =>
+  apiClient.post('/api/payments/razorpay/order', { document_id: documentId }).then((r) => r.data);
+export const verifyRazorpayPayment = (payload) =>
+  apiClient.post('/api/payments/razorpay/verify', payload).then((r) => r.data);
+
 // ---------- Journal Entries ----------
 export const listJournalEntries = () => apiClient.get('/api/journal-entries/').then((r) => r.data);
 

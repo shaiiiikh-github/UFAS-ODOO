@@ -268,7 +268,27 @@ class PaymentListResponse(BaseModel):
     payment_date: date
     amount: Decimal
     reference: str
+    provider: str = "manual"
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------- Razorpay ----------------
+class RazorpayOrderCreate(BaseModel):
+    document_id: uuid.UUID
+
+
+class RazorpayOrderResponse(BaseModel):
+    order_id: str
+    amount: int  # paise, as returned by Razorpay
+    currency: str
+    key_id: str  # public key — safe to expose to the frontend
+
+
+class RazorpayVerifyRequest(BaseModel):
+    document_id: uuid.UUID
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
 
 
 class AnalyticAccountCreate(BaseModel):

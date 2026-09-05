@@ -2,10 +2,13 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
 
+import razorpay
 from fastapi import HTTPException
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.core.config import settings
 
 from app.models.accounting import (
     Account,
@@ -203,6 +206,9 @@ async def register_payment(
     payment_date: date,
     amount: Decimal,
     reference: str | None = None,
+    provider: str = "manual",
+    razorpay_order_id: str | None = None,
+    razorpay_payment_id: str | None = None,
 ):
     """Atomically register a partial/full payment and its balanced accounting entry."""
     amount = require_positive_amount(amount)
@@ -274,6 +280,9 @@ async def register_payment(
         payment_date=payment_date,
         amount=amount,
         reference=entry_reference,
+        provider=provider,
+        razorpay_order_id=razorpay_order_id,
+        razorpay_payment_id=razorpay_payment_id,
     )
     db.add(payment)
 
@@ -284,6 +293,98 @@ async def register_payment(
     await db.refresh(doc)
     await db.refresh(payment)
     return payment, doc
+
+
+def get_razorpay_client() -> razorpay.Client:
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(500, "Razorpay keys are not configured on the server.")
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+
+async def get_or_create_razorpay_journal(db: AsyncSession) -> Journal:
+    """Bank journal used to post the accounting entry for online payments."""
+    journal = await db.scalar(select(Journal).where(Journal.name == "Razorpay"))
+    if journal:
+        return journal
+    bank_account = (await get_account_map(db)).get("1002")
+    if not bank_account:
+        raise HTTPException(500, "Bank account (1002) is missing. Run seed.py.")
+    journal = Journal(name="Razorpay", type="Bank", default_account_id=bank_account.id)
+    db.add(journal)
+    await db.flush()
+    return journal
+
+
+async def create_razorpay_order(db: AsyncSession, document_id: uuid.UUID) -> dict:
+    """Create a Razorpay order for the full outstanding amount of a document."""
+    doc = await db.get(TransactionDocument, document_id)
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+    if doc.type not in {DocumentType.VENDOR_BILL, DocumentType.CUSTOMER_INVOICE}:
+        raise HTTPException(400, "Payments can only be registered against Vendor Bills or Customer Invoices.")
+    if doc.status not in {DocumentStatus.CONFIRMED, DocumentStatus.PARTIALLY_PAID}:
+        raise HTTPException(400, "Only Confirmed or Partially Paid documents can be paid.")
+
+    outstanding = money(doc.total - doc.amount_paid)
+    if outstanding <= ZERO:
+        raise HTTPException(400, "This document is already fully paid.")
+
+    client = get_razorpay_client()
+    # Razorpay expects the smallest currency unit (paise for INR).
+    amount_paise = int((outstanding * 100).to_integral_value())
+    order = client.order.create(
+        {
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": str(doc.id),
+            "notes": {"document_id": str(doc.id)},
+        }
+    )
+    return order
+
+
+async def verify_and_register_razorpay_payment(
+    db: AsyncSession,
+    document_id: uuid.UUID,
+    razorpay_order_id: str,
+    razorpay_payment_id: str,
+    razorpay_signature: str,
+):
+    """Verify the Razorpay checkout signature, then post the payment like a manual one."""
+    # Idempotent: if this order was already verified (e.g. a retried webhook/callback),
+    # return the existing payment instead of erroring or double-posting.
+    existing = await db.scalar(select(Payment).where(Payment.razorpay_order_id == razorpay_order_id))
+    if existing:
+        doc = await db.get(TransactionDocument, existing.document_id)
+        return existing, doc
+
+    client = get_razorpay_client()
+    try:
+        client.utility.verify_payment_signature(
+            {
+                "razorpay_order_id": razorpay_order_id,
+                "razorpay_payment_id": razorpay_payment_id,
+                "razorpay_signature": razorpay_signature,
+            }
+        )
+    except razorpay.errors.SignatureVerificationError:
+        raise HTTPException(400, "Razorpay signature verification failed.")
+
+    order = client.order.fetch(razorpay_order_id)
+    amount = money(Decimal(order["amount"]) / Decimal(100))
+
+    journal = await get_or_create_razorpay_journal(db)
+    return await register_payment(
+        db,
+        document_id=document_id,
+        journal_id=journal.id,
+        payment_date=date.today(),
+        amount=amount,
+        reference=f"Razorpay {razorpay_payment_id}",
+        provider="razorpay",
+        razorpay_order_id=razorpay_order_id,
+        razorpay_payment_id=razorpay_payment_id,
+    )
 
 
 async def register_pnl_report(

@@ -25,6 +25,7 @@ from app.schemas import (
     StockReportRow,
     DocumentCreate, DocumentResponse, BalanceSheetResponse, PnLResponse,
     PaymentCreate, PaymentResponse, PaymentListResponse,
+    RazorpayOrderCreate, RazorpayOrderResponse, RazorpayVerifyRequest,
     AnalyticAccountCreate, AnalyticAccountUpdate, AnalyticAccountResponse,
     BudgetCreate, BudgetUpdate, BudgetResponse, BudgetReportRow,
     AccountCreate, AccountUpdate, AccountResponse,
@@ -38,6 +39,8 @@ from app.services import (
     register_account_balances,
     register_budget_report,
     register_payment,
+    create_razorpay_order,
+    verify_and_register_razorpay_payment,
 )
 
 app = FastAPI(title="Urban Furniture Accounting System", version="2.0.0")
@@ -553,6 +556,59 @@ async def post_payment(payment: PaymentCreate, db: AsyncSession = Depends(get_db
 
     return PaymentResponse(
         message="Payment registered successfully and accounting entry posted.",
+        payment_id=payment_record.id,
+        document_id=updated_doc.id,
+        document_status=updated_doc.status,
+        payment_amount=payment_record.amount,
+        total_paid=updated_doc.amount_paid,
+        outstanding_amount=max(Decimal("0.00"), updated_doc.total - updated_doc.amount_paid),
+        journal_entry_id=payment_record.journal_entry_id,
+    )
+
+
+@app.post("/api/payments/razorpay/order", response_model=RazorpayOrderResponse, tags=["Transactions"])
+async def create_razorpay_order_endpoint(
+    body: RazorpayOrderCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_any)
+):
+    """Create a Razorpay order for the outstanding amount of a document. Called before opening checkout."""
+    doc = await db.get(TransactionDocument, body.document_id)
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+    assert_contact_owns_document(current_user, doc)
+
+    order = await create_razorpay_order(db, body.document_id)
+    return RazorpayOrderResponse(
+        order_id=order["id"],
+        amount=order["amount"],
+        currency=order["currency"],
+        key_id=settings.RAZORPAY_KEY_ID,
+    )
+
+
+@app.post("/api/payments/razorpay/verify", response_model=PaymentResponse, tags=["Transactions"])
+async def verify_razorpay_payment_endpoint(
+    body: RazorpayVerifyRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_any)
+):
+    """Verify the signature returned by Razorpay checkout, then post the payment + accounting entry."""
+    doc = await db.get(TransactionDocument, body.document_id)
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+    assert_contact_owns_document(current_user, doc)
+
+    try:
+        payment_record, updated_doc = await verify_and_register_razorpay_payment(
+            db,
+            body.document_id,
+            body.razorpay_order_id,
+            body.razorpay_payment_id,
+            body.razorpay_signature,
+        )
+    except Exception:
+        await db.rollback()
+        raise
+
+    return PaymentResponse(
+        message="Payment verified and accounting entry posted.",
         payment_id=payment_record.id,
         document_id=updated_doc.id,
         document_status=updated_doc.status,

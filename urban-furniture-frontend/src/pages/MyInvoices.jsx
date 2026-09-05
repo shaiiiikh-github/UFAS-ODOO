@@ -22,6 +22,39 @@ export default function MyInvoices() {
     setPayForm({ journal_id: '', amount: Number(doc.outstanding_amount), reference: '' });
   };
 
+  const payOnline = async (doc) => {
+    if (!window.Razorpay) return showToast('Payment gateway failed to load. Check your connection.', 'error');
+    try {
+      const order = await api.createRazorpayOrder(doc.id);
+      const rzp = new window.Razorpay({
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.order_id,
+        name: 'Urban Furniture',
+        description: `Payment for ${doc.type}`,
+        handler: async (response) => {
+          try {
+            const result = await api.verifyRazorpayPayment({
+              document_id: doc.id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            showToast(`Payment ${money(result.payment_amount)} received.`);
+            load();
+          } catch (err) {
+            showToast(apiErrorMessage(err), 'error');
+          }
+        },
+        modal: { ondismiss: () => showToast('Payment cancelled.', 'error') },
+      });
+      rzp.open();
+    } catch (err) {
+      showToast(apiErrorMessage(err), 'error');
+    }
+  };
+
   const submitPayment = async () => {
     if (!payForm.journal_id) return showToast('Select a Bank or Cash journal.', 'error');
     try {
@@ -56,7 +89,10 @@ export default function MyInvoices() {
                 <td>{money(d.outstanding_amount)}</td>
                 <td>
                   {['Confirmed', 'Partially Paid'].includes(d.status) && (
-                    <button className="btn btn-tiny btn-success" onClick={() => openPay(d)}>Pay Now</button>
+                    <>
+                      <button className="btn btn-tiny btn-success" onClick={() => payOnline(d)}>Pay Online</button>{' '}
+                      <button className="btn btn-tiny" onClick={() => openPay(d)}>Record Manually</button>
+                    </>
                   )}
                 </td>
               </tr>

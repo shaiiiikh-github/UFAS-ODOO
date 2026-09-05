@@ -38,6 +38,7 @@ async def seed_data():
             ("Customer Invoices", "Sales", None),
             ("Vendor Bills", "Purchase", None),
             ("Main Bank", "Bank", accounts_by_code["1002"].id),
+            ("Razorpay", "Bank", accounts_by_code["1002"].id),
             ("Petty Cash", "Cash", accounts_by_code["1001"].id),
         ]
         for name, journal_type, default_account_id in journal_specs:

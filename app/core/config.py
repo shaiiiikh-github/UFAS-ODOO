@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Override via .env, e.g. CORS_ORIGINS=http://localhost:5173,https://myapp.com
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Razorpay (test mode keys by default — replace for production).
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+
     @property
     def async_database_url(self) -> str:
         return (

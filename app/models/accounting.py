@@ -121,6 +121,11 @@ class Payment(Base, TimestampMixin):
     )
     payment_date: Mapped[Date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+
+    # Online gateway tracking. "manual" = recorded by an accountant (existing flow).
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, server_default="manual")
+    razorpay_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    razorpay_payment_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     reference: Mapped[str] = mapped_column(String(100), nullable=False)
 
     document: Mapped["TransactionDocument"] = relationship(foreign_keys=[document_id])
