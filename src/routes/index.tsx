@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Plus, RefreshCw, FileText } from 'lucide-react';
 import { Login } from '@/pages/auth/Login';
 import { Dashboard } from '@/pages/dashboard/Dashboard';
-import { Contacts } from '@/pages/master/contacts/Contacts'; // 👈 Import Contacts
+import { Contacts } from '@/pages/master/contacts/Contacts';
+import { Products } from '@/pages/master/products/Products'; // 👈 Import Products
 
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
@@ -86,11 +87,17 @@ export const router = createBrowserRouter([
     ),
   },
 
-  // All other routes use placeholder pages
+  // Products route – uses real Products component
   {
     path: '/master/products',
-    ...page('Products', 'Manage your product catalog.'),
+    element: (
+      <AppShell>
+        <Products />
+      </AppShell>
+    ),
   },
+
+  // All other routes use placeholder pages
   {
     path: '/master/accounts',
     ...page('Chart of Accounts', 'Manage your chart of accounts.'),
