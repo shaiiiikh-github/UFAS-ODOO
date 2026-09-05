@@ -18,6 +18,7 @@ import { PurchaseOrders } from '@/pages/purchases/orders/PurchaseOrders';
 import { VendorBills } from '@/pages/purchases/bills/VendorBills';
 import { VendorPayments } from '@/pages/purchases/payments/VendorPayments';
 import { JournalEntries } from '@/pages/accounting/journal-entries/JournalEntries';
+import { Ledgers } from '@/pages/accounting/ledgers/Ledgers';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -193,7 +194,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/accounting/ledgers',
-    ...page('Ledgers', 'Manage ledgers.'),
+    element: (
+      <AppShell>
+        <Ledgers />
+      </AppShell>
+    ),
   },
   {
     path: '/reports/profit-loss',
