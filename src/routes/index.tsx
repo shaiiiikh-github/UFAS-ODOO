@@ -13,6 +13,7 @@ import { Journals } from '@/pages/master/journals/Journals';
 import { AnalyticAccounts } from '@/pages/master/analytics/AnalyticAccounts';
 import { Budgets } from '@/pages/master/budgets/Budgets';
 import { SalesOrders } from '@/pages/sales/orders/SalesOrders';
+import { CustomerInvoices } from '@/pages/sales/invoices/CustomerInvoices';
 // ---------- Placeholder page ----------
 const PlaceholderPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <>
@@ -142,10 +143,14 @@ export const router = createBrowserRouter([
     </AppShell>
   ),
 },
-  {
-    path: '/sales/invoices',
-    ...page('Customer Invoices', 'Manage customer invoices.'),
-  },
+{
+  path: '/sales/invoices',
+  element: (
+    <AppShell>
+      <CustomerInvoices />
+    </AppShell>
+  ),
+},
   {
     path: '/sales/payments',
     ...page('Customer Payments', 'Manage customer payments.'),

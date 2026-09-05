@@ -24,9 +24,12 @@ export interface SalesOrder {
   notes?: string;
 }
 
-export type SalesOrderInput = Omit<SalesOrder, 'id' | 'orderNumber' | 'customerName'> & {
+// Only the fields that the user provides in the form
+export type SalesOrderInput = {
+  orderDate: string;
   customerId: string;
   items: Omit<SalesOrderItem, 'id' | 'lineTotal'>[];
+  notes?: string;
 };
 
 export interface SalesOrderFilters {

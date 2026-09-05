@@ -4,9 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
-import type { SalesOrder, SalesOrderInput, SalesOrderItem } from '@/types/salesOrder';
+import type { CustomerInvoice, CustomerInvoiceInput, CustomerInvoiceItem } from '@/types/customerInvoice';
 import { useContacts } from '@/hooks/useContacts';
 import { useProducts } from '@/hooks/useProducts';
+import { useSalesOrders } from '@/hooks/useSalesOrders';
 import { formatCurrency } from '@/lib/format';
 
 const itemSchema = z.object({
@@ -16,23 +17,25 @@ const itemSchema = z.object({
   taxRate: z.number().min(0, 'Tax rate cannot be negative'),
 });
 
-const orderSchema = z.object({
-  orderDate: z.string().min(1, 'Order date is required'),
+const invoiceSchema = z.object({
+  invoiceDate: z.string().min(1, 'Invoice date is required'),
+  dueDate: z.string().optional(),
   customerId: z.string().min(1, 'Customer is required'),
+  salesOrderId: z.string().optional(),
   items: z.array(itemSchema).min(1, 'At least one item is required'),
   notes: z.string().optional(),
 });
 
-type OrderFormData = z.infer<typeof orderSchema>;
+type InvoiceFormData = z.infer<typeof invoiceSchema>;
 
-interface SalesOrderFormProps {
-  initialData?: SalesOrder | null;
-  onSubmit: (data: SalesOrderInput) => void;
+interface CustomerInvoiceFormProps {
+  initialData?: CustomerInvoice | null;
+  onSubmit: (data: CustomerInvoiceInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }
 
-export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
+export const CustomerInvoiceForm: React.FC<CustomerInvoiceFormProps> = ({
   initialData,
   onSubmit,
   onCancel,
@@ -40,6 +43,7 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
 }) => {
   const { data: contacts = [] } = useContacts({ type: 'ALL' });
   const { data: products = [] } = useProducts({});
+  const { data: salesOrders = [] } = useSalesOrders({ status: 'Confirmed' });
 
   const customers = contacts.filter(c => c.type === 'CUSTOMER' || c.type === 'BOTH');
 
@@ -50,11 +54,13 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
     watch,
     setValue,
     formState: { errors },
-  } = useForm<OrderFormData>({
-    resolver: zodResolver(orderSchema),
+  } = useForm<InvoiceFormData>({
+    resolver: zodResolver(invoiceSchema),
     defaultValues: {
-      orderDate: initialData?.orderDate || new Date().toISOString().split('T')[0],
+      invoiceDate: initialData?.invoiceDate || new Date().toISOString().split('T')[0],
+      dueDate: initialData?.dueDate || '',
       customerId: initialData?.customerId || '',
+      salesOrderId: initialData?.salesOrderId || '',
       items: initialData?.items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -71,6 +77,18 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
   });
 
   const watchItems = watch('items');
+  const watchSalesOrderId = watch('salesOrderId');
+
+  // When Sales Order changes, auto‑load customer
+  React.useEffect(() => {
+    if (watchSalesOrderId) {
+      const selectedOrder = salesOrders.find(so => so.id === watchSalesOrderId);
+      if (selectedOrder) {
+        setValue('customerId', selectedOrder.customerId);
+        // Items could also be loaded here in a real implementation
+      }
+    }
+  }, [watchSalesOrderId, salesOrders, setValue]);
 
   const calculateItemTotal = (item: any) => {
     const qty = item?.quantity || 0;
@@ -91,16 +109,18 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
     }
   };
 
-  const handleFormSubmit = (data: OrderFormData) => {
-    const items: Omit<SalesOrderItem, 'id' | 'lineTotal'>[] = data.items.map(item => ({
+  const handleFormSubmit = (data: InvoiceFormData) => {
+    const items: Omit<CustomerInvoiceItem, 'id' | 'lineTotal'>[] = data.items.map(item => ({
       productId: item.productId,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       taxRate: item.taxRate || 0,
     }));
     onSubmit({
-      orderDate: data.orderDate,
+      invoiceDate: data.invoiceDate,
+      dueDate: data.dueDate || undefined,
       customerId: data.customerId,
+      salesOrderId: data.salesOrderId || undefined,
       items,
       notes: data.notes || '',
     });
@@ -110,17 +130,31 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label htmlFor="orderDate" className="text-sm font-medium text-[#1a2332]">
-            Order Date *
+          <label htmlFor="invoiceDate" className="text-sm font-medium text-[#1a2332]">
+            Invoice Date *
           </label>
           <input
-            id="orderDate"
+            id="invoiceDate"
             type="date"
             className="w-full px-3 py-2 bg-white border border-[#e5e7eb] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1a2a3a]"
-            {...register('orderDate')}
+            {...register('invoiceDate')}
           />
-          {errors.orderDate && <p className="text-sm text-red-600">{errors.orderDate.message}</p>}
+          {errors.invoiceDate && <p className="text-sm text-red-600">{errors.invoiceDate.message}</p>}
         </div>
+        <div className="space-y-1.5">
+          <label htmlFor="dueDate" className="text-sm font-medium text-[#1a2332]">
+            Due Date
+          </label>
+          <input
+            id="dueDate"
+            type="date"
+            className="w-full px-3 py-2 bg-white border border-[#e5e7eb] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1a2a3a]"
+            {...register('dueDate')}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <label htmlFor="customerId" className="text-sm font-medium text-[#1a2332]">
             Customer *
@@ -137,11 +171,26 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
           </select>
           {errors.customerId && <p className="text-sm text-red-600">{errors.customerId.message}</p>}
         </div>
+        <div className="space-y-1.5">
+          <label htmlFor="salesOrderId" className="text-sm font-medium text-[#1a2332]">
+            Sales Order (optional)
+          </label>
+          <select
+            id="salesOrderId"
+            {...register('salesOrderId')}
+            className="w-full px-3 py-2 bg-white border border-[#e5e7eb] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1a2a3a]"
+          >
+            <option value="">None</option>
+            {salesOrders.map(so => (
+              <option key={so.id} value={so.id}>{so.orderNumber} - {so.customerName}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="text-sm font-medium text-[#1a2332]">Order Items *</label>
+          <label className="text-sm font-medium text-[#1a2332]">Invoice Items *</label>
           <Button
             type="button"
             variant="outline"
@@ -271,7 +320,7 @@ export const SalesOrderForm: React.FC<SalesOrderFormProps> = ({
             ? 'Saving...'
             : initialData
             ? 'Save Changes'
-            : 'Create Sales Order'}
+            : 'Create Invoice'}
         </Button>
       </div>
     </form>
