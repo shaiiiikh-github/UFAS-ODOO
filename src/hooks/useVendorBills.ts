@@ -1,0 +1,11 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { vendorBillService } from '@/services/vendorBillService';
+import type { VendorBillFilters, VendorBillInput } from '@/types/vendorBill';
+export const VENDOR_BILLS_QUERY_KEY = 'vendorBills';
+export const useVendorBills = (filters?: VendorBillFilters) => useQuery({ queryKey: [VENDOR_BILLS_QUERY_KEY, filters], queryFn: () => vendorBillService.getVendorBills(filters) });
+const useBillMutation = <T,>(fn: (input: T) => Promise<unknown>, message: string) => { const client = useQueryClient(); return useMutation({ mutationFn: fn, onSuccess: () => { client.invalidateQueries({ queryKey: [VENDOR_BILLS_QUERY_KEY] }); toast.success(message); }, onError: (error: Error) => toast.error(error.message) }); };
+export const useCreateVendorBill = () => useBillMutation((input: VendorBillInput) => vendorBillService.createVendorBill(input), 'Vendor bill created.');
+export const useUpdateVendorBill = () => useBillMutation(({ id, input }: { id: string; input: VendorBillInput }) => vendorBillService.updateVendorBill(id, input), 'Vendor bill updated.');
+export const usePostVendorBill = () => useBillMutation((id: string) => vendorBillService.postVendorBill(id), 'Vendor bill posted.');
+export const useCancelVendorBill = () => useBillMutation((id: string) => vendorBillService.cancelVendorBill(id), 'Vendor bill cancelled.');
