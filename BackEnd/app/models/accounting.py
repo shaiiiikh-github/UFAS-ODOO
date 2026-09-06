@@ -66,6 +66,7 @@ class JournalEntry(Base, TimestampMixin):
 
     date: Mapped[Date] = mapped_column(Date)
     reference: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="Posted")
     journal_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("journals.id"), nullable=True
     )
@@ -116,11 +117,13 @@ class Payment(Base, TimestampMixin):
     journal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("journals.id", ondelete="RESTRICT"), nullable=False
     )
-    journal_entry_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("journal_entries.id", ondelete="RESTRICT"), nullable=False
+    journal_entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("journal_entries.id", ondelete="RESTRICT"), nullable=True
     )
     payment_date: Mapped[Date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="Posted")
+    method: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Online gateway tracking. "manual" = recorded by an accountant (existing flow).
     provider: Mapped[str] = mapped_column(String(20), nullable=False, server_default="manual")

@@ -136,6 +136,15 @@ class DocumentCreate(BaseModel):
     contact_id: uuid.UUID
     type: DocumentType
     date: date
+    due_date: Optional[date] = None
+    lines: List[DocumentLineCreate] = Field(min_length=1)
+
+
+class DocumentUpdate(BaseModel):
+    """Edit a DRAFT document: header + full line replacement."""
+    contact_id: uuid.UUID
+    date: date
+    due_date: Optional[date] = None
     lines: List[DocumentLineCreate] = Field(min_length=1)
 
 
@@ -158,6 +167,8 @@ class DocumentResponse(BaseModel):
     total: Decimal
     amount_paid: Decimal
     outstanding_amount: Decimal = Decimal("0.00")
+    due_date: Optional[date] = None
+    source_document_id: Optional[uuid.UUID] = None
     journal_entry_id: Optional[uuid.UUID] = None
     lines: List[DocumentLineResponse]
     model_config = ConfigDict(from_attributes=True)
@@ -247,6 +258,15 @@ class PaymentCreate(BaseModel):
     payment_date: date
     amount: Decimal = Field(gt=0)
     reference: Optional[str] = Field(default=None, max_length=100)
+    method: Optional[str] = Field(default=None, max_length=20)
+
+
+class PaymentUpdate(BaseModel):
+    journal_id: uuid.UUID
+    payment_date: date
+    amount: Decimal = Field(gt=0)
+    reference: Optional[str] = Field(default=None, max_length=100)
+    method: Optional[str] = Field(default=None, max_length=20)
 
 
 class PaymentResponse(BaseModel):
@@ -264,11 +284,13 @@ class PaymentListResponse(BaseModel):
     id: uuid.UUID
     document_id: uuid.UUID
     journal_id: uuid.UUID
-    journal_entry_id: uuid.UUID
     payment_date: date
     amount: Decimal
     reference: str
     provider: str = "manual"
+    status: str = "Posted"
+    method: Optional[str] = None
+    journal_entry_id: Optional[uuid.UUID] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -365,10 +387,29 @@ class JournalItemResponse(BaseModel):
     credit: Decimal
 
 
+class JournalItemCreate(BaseModel):
+    account_id: uuid.UUID
+    analytic_account_id: Optional[uuid.UUID] = None
+    debit: Decimal = Field(default=Decimal("0.00"), ge=0)
+    credit: Decimal = Field(default=Decimal("0.00"), ge=0)
+
+
+class JournalEntryCreate(BaseModel):
+    date: date
+    reference: Optional[str] = Field(default=None, max_length=100)
+    journal_id: Optional[uuid.UUID] = None
+    items: List[JournalItemCreate] = Field(min_length=1)
+
+
+class JournalEntryUpdate(JournalEntryCreate):
+    pass
+
+
 class JournalEntryResponse(BaseModel):
     id: uuid.UUID
     date: date
     reference: str
+    status: str = "Posted"
     journal_id: Optional[uuid.UUID]
     journal_name: Optional[str]
     total_debit: Decimal

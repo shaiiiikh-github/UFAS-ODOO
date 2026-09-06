@@ -1,23 +1,62 @@
-import { contactService } from '@/services/contactService';
-import { productService } from '@/services/productService';
-import { purchaseOrderService } from '@/services/purchaseOrderService';
-import type { PurchaseOrderItem } from '@/types/purchaseOrder';
 import type { VendorBill, VendorBillFilters, VendorBillInput } from '@/types/vendorBill';
+import { ApiError, num } from '@/lib/api';
+import { fetchDocuments, createDocument, updateDocument, cancelDocument, confirmDocument, lineToItem, itemToForm, billStatus, numberFor, type BackendDoc, type FormItem } from '@/lib/documents';
 
-let bills: VendorBill[] = [{ id: 'vb-1', billNumber: 'VB-1001', billDate: '2025-02-05', dueDate: '2025-03-05', purchaseOrderId: 'po-1', purchaseOrderNumber: 'PO-1001', vendorId: '2', vendorName: 'Priya Sharma', status: 'Posted', items: [{ id: 'vbi-1', productId: '1', productName: 'Office Desk', quantity: 3, unitPrice: 18000, taxRate: .18, lineTotal: 63720 }], subtotal: 54000, taxAmount: 9720, totalAmount: 63720, paidAmount: 0, balanceDue: 63720, notes: 'Net 30 terms.' }];
-let nextId = 2;
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const round = (value: number) => Math.round(value * 100) / 100;
-const totals = (items: PurchaseOrderItem[]) => { const subtotal = round(items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)); const taxAmount = round(items.reduce((sum, item) => sum + item.quantity * item.unitPrice * item.taxRate, 0)); return { subtotal, taxAmount, totalAmount: round(subtotal + taxAmount) }; };
-const buildItems = async (input: VendorBillInput['items']): Promise<PurchaseOrderItem[]> => { const products = await productService.getProducts(); return input.map((item, index) => ({ ...item, id: `vbi-${Date.now()}-${index}`, productName: products.find(product => product.id === item.productId)?.name ?? '', taxRate: item.taxRate || 0, lineTotal: round(item.quantity * item.unitPrice * (1 + (item.taxRate || 0))) })); };
+function toBill(d: BackendDoc): VendorBill {
+  return {
+    id: d.id,
+    billNumber: numberFor('BILL', d.id),
+    billDate: d.date,
+    dueDate: d.due_date ?? undefined,
+    purchaseOrderId: d.source_document_id ?? undefined,
+    purchaseOrderNumber: d.source_document_id ? numberFor('PO', d.source_document_id) : undefined,
+    vendorId: d.contact_id,
+    vendorName: d.contact_name ?? undefined,
+    status: billStatus(d.status),
+    items: d.lines.map(lineToItem),
+    subtotal: num(d.subtotal),
+    taxAmount: num(d.tax_amount),
+    totalAmount: num(d.total),
+    paidAmount: num(d.amount_paid),
+    balanceDue: num(d.outstanding_amount),
+    notes: undefined,
+  };
+}
 
 export const vendorBillService = {
-  async getVendorBills(filters?: VendorBillFilters) { await delay(250); return bills.filter(bill => { const search = filters?.search?.toLowerCase(); return (!search || bill.billNumber.toLowerCase().includes(search) || bill.vendorName?.toLowerCase().includes(search) || bill.purchaseOrderNumber?.toLowerCase().includes(search)) && (!filters?.status || filters.status === 'ALL' || bill.status === filters.status) && (!filters?.vendorId || bill.vendorId === filters.vendorId) && (!filters?.fromDate || bill.billDate >= filters.fromDate) && (!filters?.toDate || bill.billDate <= filters.toDate); }); },
-  async createVendorBill(input: VendorBillInput) { await delay(300); const contacts = await contactService.getContacts(); const vendor = contacts.find(contact => contact.id === input.vendorId); if (!vendor || !['VENDOR', 'BOTH'].includes(vendor.type)) throw new Error('Select a valid vendor.'); const po = input.purchaseOrderId ? (await purchaseOrderService.getPurchaseOrders()).find(order => order.id === input.purchaseOrderId && order.status === 'Confirmed') : undefined; if (input.purchaseOrderId && !po) throw new Error('Select a confirmed purchase order.'); if (po && po.vendorId !== input.vendorId) throw new Error('Purchase order vendor does not match.'); const items = await buildItems(input.items); const amount = totals(items); const bill: VendorBill = { id: `vb-${nextId++}`, ...input, vendorName: vendor.name, purchaseOrderNumber: po?.orderNumber, status: 'Draft', items, ...amount, paidAmount: 0, balanceDue: amount.totalAmount, notes: input.notes || '' }; bills = [...bills, bill]; return bill; },
-  async updateVendorBill(id: string, input: VendorBillInput) { await delay(300); const existing = bills.find(bill => bill.id === id); if (!existing) throw new Error('Vendor bill not found.'); if (existing.status !== 'Draft') throw new Error('Only draft vendor bills can be edited.'); const contacts = await contactService.getContacts(); const vendor = contacts.find(contact => contact.id === input.vendorId); if (!vendor || !['VENDOR', 'BOTH'].includes(vendor.type)) throw new Error('Select a valid vendor.'); const po = input.purchaseOrderId ? (await purchaseOrderService.getPurchaseOrders()).find(order => order.id === input.purchaseOrderId && order.status === 'Confirmed') : undefined; const items = await buildItems(input.items); const amount = totals(items); const updated: VendorBill = { ...existing, ...input, vendorName: vendor.name, purchaseOrderNumber: po?.orderNumber, items, ...amount, balanceDue: round(amount.totalAmount - existing.paidAmount), notes: input.notes || '' }; bills = bills.map(bill => bill.id === id ? updated : bill); return updated; },
-  async postVendorBill(id: string) { await delay(250); const bill = bills.find(value => value.id === id); if (!bill || bill.status !== 'Draft') throw new Error('Only draft vendor bills can be posted.'); const updated = { ...bill, status: 'Posted' as const }; bills = bills.map(value => value.id === id ? updated : value); return updated; },
-  async cancelVendorBill(id: string) { await delay(250); const bill = bills.find(value => value.id === id); if (!bill || !['Draft', 'Posted'].includes(bill.status)) throw new Error('Vendor bill cannot be cancelled.'); const updated = { ...bill, status: 'Cancelled' as const }; bills = bills.map(value => value.id === id ? updated : value); return updated; },
-  async getPayableVendorBills() { await delay(150); return bills.filter(bill => ['Posted', 'Partially Paid'].includes(bill.status) && bill.balanceDue > 0); },
-  async applyPayment(id: string, amount: number) { const bill = bills.find(value => value.id === id); if (!bill || !['Posted', 'Partially Paid'].includes(bill.status) || amount <= 0 || amount > bill.balanceDue) throw new Error('Payment amount must not exceed the bill balance due.'); const paidAmount = round(bill.paidAmount + amount); const balanceDue = round(bill.totalAmount - paidAmount); const updated: VendorBill = { ...bill, paidAmount, balanceDue, status: balanceDue === 0 ? 'Paid' : 'Partially Paid' }; bills = bills.map(value => value.id === id ? updated : value); return updated; },
-  async reversePayment(id: string, amount: number) { const bill = bills.find(value => value.id === id); if (!bill || amount <= 0 || amount > bill.paidAmount) throw new Error('Payment cannot be reversed.'); const paidAmount = round(bill.paidAmount - amount); const balanceDue = round(bill.totalAmount - paidAmount); const updated: VendorBill = { ...bill, paidAmount, balanceDue, status: paidAmount === 0 ? 'Posted' : 'Partially Paid' }; bills = bills.map(value => value.id === id ? updated : value); return updated; },
+  async getVendorBills(filters?: VendorBillFilters): Promise<VendorBill[]> {
+    let result = (await fetchDocuments()).filter((d) => d.type === 'Vendor Bill').map(toBill);
+    const search = filters?.search?.toLowerCase();
+    if (search) result = result.filter((b) => b.billNumber.toLowerCase().includes(search) || (b.vendorName?.toLowerCase().includes(search) ?? false));
+    if (filters?.status && filters.status !== 'ALL') result = result.filter((b) => b.status === filters.status);
+    if (filters?.vendorId) result = result.filter((b) => b.vendorId === filters.vendorId);
+    if (filters?.fromDate) result = result.filter((b) => b.billDate >= filters.fromDate!);
+    if (filters?.toDate) result = result.filter((b) => b.billDate <= filters.toDate!);
+    return result;
+  },
+  async getVendorBill(id: string): Promise<VendorBill | undefined> {
+    return (await vendorBillService.getVendorBills()).find((b) => b.id === id);
+  },
+  async createVendorBill(input: VendorBillInput): Promise<VendorBill> {
+    return toBill(await createDocument(input.vendorId, 'Vendor Bill', input.billDate, input.items as FormItem[], input.dueDate));
+  },
+  async updateVendorBill(id: string, input: Partial<VendorBillInput>): Promise<VendorBill> {
+    const current = await vendorBillService.getVendorBill(id);
+    if (!current) throw new ApiError(404, 'Vendor bill not found.');
+    const items = (input.items as FormItem[]) ?? current.items.map(itemToForm);
+    return toBill(await updateDocument(id, input.vendorId ?? current.vendorId, input.billDate ?? current.billDate, items, input.dueDate ?? current.dueDate));
+  },
+  // "Post" a bill = confirm it (posts the balanced journal entry).
+  async postVendorBill(id: string): Promise<VendorBill> {
+    return toBill(await confirmDocument(id));
+  },
+  async cancelVendorBill(id: string): Promise<VendorBill> {
+    return toBill(await cancelDocument(id));
+  },
+  // Bills that can still receive a payment (used by the vendor payment form).
+  async getPayableVendorBills(): Promise<VendorBill[]> {
+    return (await vendorBillService.getVendorBills()).filter(
+      (b) => (b.status === 'Posted' || b.status === 'Partially Paid') && b.balanceDue > 0,
+    );
+  },
 };

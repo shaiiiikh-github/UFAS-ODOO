@@ -1,103 +1,54 @@
-import type { Product, ProductInput, ProductFilters } from '@/types/product';
+import type { Product, ProductInput, ProductFilters, ProductType } from '@/types/product';
+import { api, num } from '@/lib/api';
 
-// Mock data
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Office Desk',
-    type: 'goods',
-    category: 'Office Furniture',
-    salesPrice: 25000,
-    costPrice: 18000,
-  },
-  {
-    id: '2',
-    name: 'Ergonomic Chair',
-    type: 'goods',
-    category: 'Seating',
-    salesPrice: 12000,
-    costPrice: 8500,
-  },
-  {
-    id: '3',
-    name: 'Interior Design Consultation',
-    type: 'service',
-    category: 'Services',
-    salesPrice: 5000,
-    costPrice: 0,
-  },
-  {
-    id: '4',
-    name: 'Modular Wardrobe Set',
-    type: 'combo',
-    category: 'Storage',
-    salesPrice: 45000,
-    costPrice: 32000,
-  },
-  {
-    id: '5',
-    name: 'Conference Table',
-    type: 'goods',
-    category: 'Office Furniture',
-    salesPrice: 38000,
-    costPrice: 27000,
-  },
-  {
-    id: '6',
-    name: 'Installation Service',
-    type: 'service',
-    category: 'Services',
-    salesPrice: 2000,
-    costPrice: 0,
-  },
-];
+interface BackendProduct {
+  id: string;
+  name: string;
+  type: 'Goods' | 'Service' | 'Combo';
+  sales_price: number | string;
+  cost: number | string;
+  category: string | null;
+  stock_quantity: number;
+  is_active: boolean;
+}
 
-const products = [...mockProducts];
-let nextId = products.length + 1;
+const TYPE_IN: Record<BackendProduct['type'], ProductType> = { Goods: 'goods', Service: 'service', Combo: 'combo' };
+const TYPE_OUT: Record<ProductType, BackendProduct['type']> = { goods: 'Goods', service: 'Service', combo: 'Combo' };
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+function toProduct(p: BackendProduct): Product {
+  return {
+    id: p.id,
+    name: p.name,
+    type: TYPE_IN[p.type],
+    category: p.category ?? '',
+    salesPrice: num(p.sales_price),
+    costPrice: num(p.cost),
+  };
+}
+
+function toPayload(input: Partial<ProductInput>) {
+  const body: Record<string, unknown> = {};
+  if (input.name !== undefined) body.name = input.name;
+  if (input.type !== undefined) body.type = TYPE_OUT[input.type];
+  if (input.category !== undefined) body.category = input.category || null;
+  if (input.salesPrice !== undefined) body.sales_price = input.salesPrice;
+  if (input.costPrice !== undefined) body.cost = input.costPrice;
+  return body;
+}
 
 export const productService = {
   getProducts: async (filters?: ProductFilters): Promise<Product[]> => {
-    await delay(500);
-    let result = [...products];
-
+    let result = (await api.get<BackendProduct[]>('/api/products/')).map(toProduct);
     if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(searchLower) ||
-        p.category.toLowerCase().includes(searchLower)
-      );
+      const q = filters.search.toLowerCase();
+      result = result.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
     }
-
-    if (filters?.type && filters.type !== 'ALL') {
-      result = result.filter(p => p.type === filters.type);
-    }
-
+    if (filters?.type && filters.type !== 'ALL') result = result.filter((p) => p.type === filters.type);
     return result;
   },
-
-  getProduct: async (id: string): Promise<Product | undefined> => {
-    await delay(300);
-    return products.find(p => p.id === id);
-  },
-
-  createProduct: async (input: ProductInput): Promise<Product> => {
-    await delay(600);
-    const newProduct: Product = {
-      ...input,
-      id: String(nextId++),
-    };
-    products.push(newProduct);
-    return newProduct;
-  },
-
-  updateProduct: async (id: string, input: Partial<ProductInput>): Promise<Product> => {
-    await delay(600);
-    const index = products.findIndex(p => p.id === id);
-    if (index === -1) throw new Error('Product not found');
-    const updated = { ...products[index], ...input };
-    products[index] = updated;
-    return updated;
-  },
+  getProduct: async (id: string): Promise<Product | undefined> => (await productService.getProducts()).find((p) => p.id === id),
+  createProduct: async (input: ProductInput): Promise<Product> =>
+    toProduct(await api.post<BackendProduct>('/api/products/', { ...toPayload(input), stock_quantity: 0 })),
+  updateProduct: async (id: string, data: Partial<ProductInput>): Promise<Product> =>
+    toProduct(await api.put<BackendProduct>(`/api/products/${id}`, toPayload(data))),
 };

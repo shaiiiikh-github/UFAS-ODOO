@@ -54,6 +54,7 @@ class DocumentStatus(str, enum.Enum):
     CONFIRMED = "Confirmed"
     PARTIALLY_PAID = "Partially Paid"
     PAID = "Paid"
+    CANCELLED = "Cancelled"
 
 class TransactionDocument(Base, TimestampMixin):
     """Handles SO, PO, Bills, and Invoices"""
@@ -63,6 +64,8 @@ class TransactionDocument(Base, TimestampMixin):
     type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), nullable=False)
     status: Mapped[DocumentStatus] = mapped_column(Enum(DocumentStatus), default=DocumentStatus.DRAFT)
     date: Mapped[date] = mapped_column(Date, nullable=False)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("transaction_documents.id"), nullable=True)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0.00"))
     tax_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0.00"))
     total: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0.00"))

@@ -1,3 +1,40 @@
-import { budgetService } from '@/services/budgetService'; import type { BudgetReport, BudgetReportFilters } from '@/types/budgetReport';
-const actualAmounts: Record<string, number> = { '1': 465000, '2': 62500, '3': 112400, '4': 510000, '5': 74300 };
-export const budgetReportService = { async getBudgetReport(filters?: BudgetReportFilters): Promise<BudgetReport> { const budgets = await budgetService.getBudgets({ period: filters?.period, analyticAccountId: filters?.analyticAccountId }); const rows = budgets.map(budget => { const actualAmount = actualAmounts[budget.id] ?? 0; return { budgetId: budget.id, budgetName: budget.name, period: budget.period, analyticAccountId: budget.analyticAccountId, analyticAccountName: budget.analyticAccountName, plannedAmount: budget.plannedAmount, actualAmount, variance: actualAmount - budget.plannedAmount }; }); return { rows, totalPlanned: rows.reduce((sum, row) => sum + row.plannedAmount, 0), totalActual: rows.reduce((sum, row) => sum + row.actualAmount, 0), totalVariance: rows.reduce((sum, row) => sum + row.variance, 0) }; } };
+import type { BudgetReport, BudgetReportFilters, BudgetReportRow } from '@/types/budgetReport';
+import { api, num } from '@/lib/api';
+
+interface BackendBudgetReportRow {
+  id: string;
+  name: string;
+  analytic_account_id: string;
+  analytic_account_name: string | null;
+  period_start: string;
+  period_end: string;
+  responsible_person: string;
+  planned: number | string;
+  actual: number | string;
+  variance: number | string;
+  utilization_percent: number | string;
+}
+
+export const budgetReportService = {
+  async getBudgetReport(filters?: BudgetReportFilters): Promise<BudgetReport> {
+    const raw = await api.get<BackendBudgetReportRow[]>('/api/reports/budget');
+    let rows: BudgetReportRow[] = raw.map((r) => ({
+      budgetId: r.id,
+      budgetName: r.name,
+      period: `${r.period_start} to ${r.period_end}`,
+      analyticAccountId: r.analytic_account_id,
+      analyticAccountName: r.analytic_account_name ?? undefined,
+      plannedAmount: num(r.planned),
+      actualAmount: num(r.actual),
+      variance: num(r.variance),
+    }));
+    if (filters?.period) rows = rows.filter((r) => r.period === filters.period);
+    if (filters?.analyticAccountId) rows = rows.filter((r) => r.analyticAccountId === filters.analyticAccountId);
+    return {
+      rows,
+      totalPlanned: rows.reduce((s, r) => s + r.plannedAmount, 0),
+      totalActual: rows.reduce((s, r) => s + r.actualAmount, 0),
+      totalVariance: rows.reduce((s, r) => s + r.variance, 0),
+    };
+  },
+};

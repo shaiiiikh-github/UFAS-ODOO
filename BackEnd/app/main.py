@@ -23,13 +23,14 @@ from app.models.accounting import Account, AnalyticAccount, Budget, Journal, Jou
 from app.schemas import (
     ContactCreate, ContactUpdate, ContactResponse, ProductCreate, ProductUpdate, ProductResponse,
     StockReportRow,
-    DocumentCreate, DocumentResponse, BalanceSheetResponse, PnLResponse,
-    PaymentCreate, PaymentResponse, PaymentListResponse,
+    DocumentCreate, DocumentUpdate, DocumentResponse, BalanceSheetResponse, PnLResponse,
+    PaymentCreate, PaymentUpdate, PaymentResponse, PaymentListResponse,
     RazorpayOrderCreate, RazorpayOrderResponse, RazorpayVerifyRequest,
     AnalyticAccountCreate, AnalyticAccountUpdate, AnalyticAccountResponse,
     BudgetCreate, BudgetUpdate, BudgetResponse, BudgetReportRow,
     AccountCreate, AccountUpdate, AccountResponse,
-    JournalCreate, JournalUpdate, JournalResponse, AccountBalanceResponse, JournalEntryResponse,
+    JournalCreate, JournalUpdate, JournalResponse, AccountBalanceResponse, JournalEntryResponse, JournalItemResponse,
+    JournalEntryCreate, JournalEntryUpdate,
     UserCreate, UserResponse, LoginRequest, TokenResponse,
 )
 from app.services import (
@@ -41,6 +42,17 @@ from app.services import (
     register_payment,
     create_razorpay_order,
     verify_and_register_razorpay_payment,
+    update_document as svc_update_document,
+    delete_document as svc_delete_document,
+    cancel_document as svc_cancel_document,
+    create_manual_journal_entry,
+    update_manual_journal_entry,
+    post_manual_journal_entry,
+    cancel_manual_journal_entry,
+    create_draft_payment,
+    update_payment as svc_update_payment,
+    post_payment as svc_post_payment,
+    cancel_payment as svc_cancel_payment,
 )
 
 app = FastAPI(title="Urban Furniture Accounting System", version="2.0.0")
@@ -429,6 +441,7 @@ async def create_document(doc_in: DocumentCreate, db: AsyncSession = Depends(get
         contact_id=doc_in.contact_id,
         type=doc_in.type,
         date=doc_in.date,
+        due_date=doc_in.due_date,
         subtotal=subtotal_sum,
         tax_amount=tax_sum,
         total=total_sum,
@@ -491,6 +504,8 @@ async def convert_document(document_id: uuid.UUID, db: AsyncSession = Depends(ge
         contact_id=source.contact_id,
         type=target_type,
         date=source.date,
+        due_date=source.due_date,
+        source_document_id=source.id,
         subtotal=source.subtotal,
         tax_amount=source.tax_amount,
         total=source.total,
@@ -533,37 +548,22 @@ async def confirm_document(document_id: uuid.UUID, db: AsyncSession = Depends(ge
 
 
 # ---------------- Payments ----------------
-@app.post("/api/payments/", response_model=PaymentResponse, tags=["Transactions"])
-async def post_payment(payment: PaymentCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_any)):
-    """Admin/Accountant can pay any document. A Contact user may only pay their own invoice/bill."""
+@app.post("/api/payments/", response_model=PaymentListResponse, tags=["Transactions"])
+async def create_payment(payment: PaymentCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_any)):
+    """Create a DRAFT payment against a Vendor Bill / Customer Invoice. Post it separately to affect the ledger."""
     if current_user.role == UserRole.CONTACT:
         target_doc = await db.get(TransactionDocument, payment.document_id)
         if not target_doc or target_doc.contact_id != current_user.contact_id:
             raise HTTPException(403, "You may only pay your own invoices and bills.")
-
     try:
-        payment_record, updated_doc = await register_payment(
-            db,
-            payment.document_id,
-            payment.journal_id,
-            payment.payment_date,
-            payment.amount,
-            payment.reference,
+        record = await create_draft_payment(
+            db, payment.document_id, payment.journal_id, payment.payment_date,
+            payment.amount, payment.reference, payment.method,
         )
     except Exception:
         await db.rollback()
         raise
-
-    return PaymentResponse(
-        message="Payment registered successfully and accounting entry posted.",
-        payment_id=payment_record.id,
-        document_id=updated_doc.id,
-        document_status=updated_doc.status,
-        payment_amount=payment_record.amount,
-        total_paid=updated_doc.amount_paid,
-        outstanding_amount=max(Decimal("0.00"), updated_doc.total - updated_doc.amount_paid),
-        journal_entry_id=payment_record.journal_entry_id,
-    )
+    return record
 
 
 @app.post("/api/payments/razorpay/order", response_model=RazorpayOrderResponse, tags=["Transactions"])
@@ -723,6 +723,7 @@ async def get_journal_entries(db: AsyncSession = Depends(get_db), _staff: User =
             id=entry.id,
             date=entry.date,
             reference=entry.reference,
+            status=entry.status,
             journal_id=entry.journal_id,
             journal_name=entry.journal.name if entry.journal else None,
             total_debit=total_debit,
@@ -851,3 +852,120 @@ async def serve_frontend():
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
     return "<h3>Frontend index.html not found in the 'static' folder.</h3>"
+
+
+# ==================== Lifecycle endpoints (added) ====================
+
+@app.put("/api/documents/{document_id}", response_model=DocumentResponse, tags=["Transactions"])
+async def update_document_endpoint(document_id: uuid.UUID, doc_in: DocumentUpdate, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        doc = await svc_update_document(db, document_id, doc_in.contact_id, doc_in.date, doc_in.due_date, [l.model_dump() for l in doc_in.lines])
+    except Exception:
+        await db.rollback()
+        raise
+    return document_response(doc)
+
+
+@app.delete("/api/documents/{document_id}", status_code=204, tags=["Transactions"])
+async def delete_document_endpoint(document_id: uuid.UUID, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        await svc_delete_document(db, document_id)
+    except Exception:
+        await db.rollback()
+        raise
+    return None
+
+
+@app.post("/api/documents/{document_id}/cancel", response_model=DocumentResponse, tags=["Transactions"])
+async def cancel_document_endpoint(document_id: uuid.UUID, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        doc = await svc_cancel_document(db, document_id)
+    except Exception:
+        await db.rollback()
+        raise
+    return document_response(doc)
+
+
+def _entry_to_response(entry) -> JournalEntryResponse:
+    total_debit = sum((item.debit for item in entry.items), Decimal("0.00"))
+    total_credit = sum((item.credit for item in entry.items), Decimal("0.00"))
+    return JournalEntryResponse(
+        id=entry.id, date=entry.date, reference=entry.reference, status=entry.status,
+        journal_id=entry.journal_id, journal_name=entry.journal.name if entry.journal else None,
+        total_debit=total_debit, total_credit=total_credit, balanced=total_debit == total_credit,
+        items=[JournalItemResponse(
+            id=i.id, entry_id=i.entry_id, account_id=i.account_id,
+            account_code=i.account.code, account_name=i.account.name, account_type=i.account.type,
+            analytic_account_id=i.analytic_account_id, debit=i.debit, credit=i.credit,
+        ) for i in entry.items],
+    )
+
+
+@app.post("/api/journal-entries/", response_model=JournalEntryResponse, tags=["Accounting"])
+async def create_journal_entry_endpoint(entry_in: JournalEntryCreate, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        entry = await create_manual_journal_entry(db, entry_in.date, entry_in.reference, entry_in.journal_id, [i.model_dump() for i in entry_in.items])
+    except Exception:
+        await db.rollback()
+        raise
+    return _entry_to_response(entry)
+
+
+@app.put("/api/journal-entries/{entry_id}", response_model=JournalEntryResponse, tags=["Accounting"])
+async def update_journal_entry_endpoint(entry_id: uuid.UUID, entry_in: JournalEntryUpdate, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        entry = await update_manual_journal_entry(db, entry_id, entry_in.date, entry_in.reference, entry_in.journal_id, [i.model_dump() for i in entry_in.items])
+    except Exception:
+        await db.rollback()
+        raise
+    return _entry_to_response(entry)
+
+
+@app.post("/api/journal-entries/{entry_id}/post", response_model=JournalEntryResponse, tags=["Accounting"])
+async def post_journal_entry_endpoint(entry_id: uuid.UUID, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        entry = await post_manual_journal_entry(db, entry_id)
+    except Exception:
+        await db.rollback()
+        raise
+    return _entry_to_response(entry)
+
+
+@app.post("/api/journal-entries/{entry_id}/cancel", response_model=JournalEntryResponse, tags=["Accounting"])
+async def cancel_journal_entry_endpoint(entry_id: uuid.UUID, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        entry = await cancel_manual_journal_entry(db, entry_id)
+    except Exception:
+        await db.rollback()
+        raise
+    return _entry_to_response(entry)
+
+
+@app.put("/api/payments/{payment_id}", response_model=PaymentListResponse, tags=["Transactions"])
+async def update_payment_endpoint(payment_id: uuid.UUID, body: PaymentUpdate, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        record = await svc_update_payment(db, payment_id, body.journal_id, body.payment_date, body.amount, body.reference, body.method)
+    except Exception:
+        await db.rollback()
+        raise
+    return record
+
+
+@app.post("/api/payments/{payment_id}/post", response_model=PaymentListResponse, tags=["Transactions"])
+async def post_payment_endpoint(payment_id: uuid.UUID, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        record = await svc_post_payment(db, payment_id)
+    except Exception:
+        await db.rollback()
+        raise
+    return record
+
+
+@app.post("/api/payments/{payment_id}/cancel", response_model=PaymentListResponse, tags=["Transactions"])
+async def cancel_payment_endpoint(payment_id: uuid.UUID, db: AsyncSession = Depends(get_db), _staff: User = Depends(require_staff)):
+    try:
+        record = await svc_cancel_payment(db, payment_id)
+    except Exception:
+        await db.rollback()
+        raise
+    return record

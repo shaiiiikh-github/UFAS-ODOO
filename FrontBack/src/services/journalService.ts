@@ -1,56 +1,44 @@
-import type { Journal, JournalInput, JournalFilters } from '@/types/journal';
+import type { Journal, JournalInput, JournalFilters, JournalType } from '@/types/journal';
+import { api } from '@/lib/api';
 
-// Default journals as per spec
-const mockJournals: Journal[] = [
-  { id: '1', name: 'Sales', type: 'sales' },
-  { id: '2', name: 'Purchase', type: 'purchase' },
-  { id: '3', name: 'Bank', type: 'bank' },
-  { id: '4', name: 'Cash', type: 'cash' },
-];
+interface BackendJournal {
+  id: string;
+  name: string;
+  type: string;
+  default_account_id: string | null;
+  default_account_name: string | null;
+  is_active: boolean;
+}
 
-const journals = [...mockJournals];
-let nextId = journals.length + 1;
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const KNOWN: JournalType[] = ['sales', 'purchase', 'bank', 'cash'];
+function typeIn(backendType: string): JournalType {
+  const lower = backendType.toLowerCase() as JournalType;
+  return KNOWN.includes(lower) ? lower : 'bank';
+}
+function typeOut(t: JournalType): string {
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+function toJournal(j: BackendJournal): Journal {
+  return { id: j.id, name: j.name, type: typeIn(j.type) };
+}
 
 export const journalService = {
   getJournals: async (filters?: JournalFilters): Promise<Journal[]> => {
-    await delay(500);
-    let result = [...journals];
-
+    let result = (await api.get<BackendJournal[]>('/api/journals/')).map(toJournal);
     if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(j => j.name.toLowerCase().includes(searchLower));
+      const q = filters.search.toLowerCase();
+      result = result.filter((j) => j.name.toLowerCase().includes(q));
     }
-
-    if (filters?.type && filters.type !== 'ALL') {
-      result = result.filter(j => j.type === filters.type);
-    }
-
+    if (filters?.type && filters.type !== 'ALL') result = result.filter((j) => j.type === filters.type);
     return result;
   },
-
-  getJournal: async (id: string): Promise<Journal | undefined> => {
-    await delay(300);
-    return journals.find(j => j.id === id);
-  },
-
-  createJournal: async (input: JournalInput): Promise<Journal> => {
-    await delay(600);
-    const newJournal: Journal = {
-      ...input,
-      id: String(nextId++),
-    };
-    journals.push(newJournal);
-    return newJournal;
-  },
-
-  updateJournal: async (id: string, input: Partial<JournalInput>): Promise<Journal> => {
-    await delay(600);
-    const index = journals.findIndex(j => j.id === id);
-    if (index === -1) throw new Error('Journal not found');
-    const updated = { ...journals[index], ...input };
-    journals[index] = updated;
-    return updated;
+  getJournal: async (id: string): Promise<Journal | undefined> => (await journalService.getJournals()).find((j) => j.id === id),
+  createJournal: async (input: JournalInput): Promise<Journal> =>
+    toJournal(await api.post<BackendJournal>('/api/journals/', { name: input.name, type: typeOut(input.type) })),
+  updateJournal: async (id: string, data: Partial<JournalInput>): Promise<Journal> => {
+    const body: Record<string, unknown> = {};
+    if (data.name !== undefined) body.name = data.name;
+    if (data.type !== undefined) body.type = typeOut(data.type);
+    return toJournal(await api.put<BackendJournal>(`/api/journals/${id}`, body));
   },
 };

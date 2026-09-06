@@ -1,5 +1,94 @@
-import { accountService } from '@/services/accountService'; import { journalService } from '@/services/journalService'; import type { JournalEntry, JournalEntryFilters, JournalEntryInput, JournalEntryLine } from '@/types/journalEntry';
-let entries: JournalEntry[] = [{ id: 'je-1', entryNumber: 'JE-1001', entryDate: '2025-02-28', journalId: '4', journalName: 'Cash', reference: 'Opening balance', description: 'Opening cash balance', status: 'Posted', lines: [{ id: 'jel-1', accountId: '1', accountName: 'Cash', description: '', debit: 100000, credit: 0 }, { id: 'jel-2', accountId: '5', accountName: 'Owner Capital', description: '', debit: 0, credit: 100000 }], totalDebit: 100000, totalCredit: 100000 }]; let nextId = 2; const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms)); const round = (amount: number) => Math.round(amount * 100) / 100;
-const validate = (lines: JournalEntryInput['lines']) => { if (lines.length < 2) throw new Error('At least two journal lines are required.'); const debit = round(lines.reduce((sum, line) => sum + line.debit, 0)); const credit = round(lines.reduce((sum, line) => sum + line.credit, 0)); if (lines.some(line => !line.accountId || line.debit < 0 || line.credit < 0 || (line.debit > 0 && line.credit > 0) || (line.debit === 0 && line.credit === 0))) throw new Error('Each line needs an account and either a debit or a credit.'); if (debit <= 0 || debit !== credit) throw new Error('Total debits must equal total credits and be greater than zero.'); return { debit, credit }; };
-const enrich = async (input: JournalEntryInput) => { const { debit, credit } = validate(input.lines); const [accounts, journals] = await Promise.all([accountService.getAccounts(), journalService.getJournals()]); const journal = journals.find(value => value.id === input.journalId); if (!journal) throw new Error('Select a valid journal.'); const lines: JournalEntryLine[] = input.lines.map((line, index) => { const account = accounts.find(value => value.id === line.accountId); if (!account) throw new Error('Select a valid account.'); return { ...line, id: `jel-${Date.now()}-${index}`, accountName: account.name }; }); return { lines, journalName: journal.name, totalDebit: debit, totalCredit: credit }; };
-export const journalEntryService = { async getJournalEntries(filters?: JournalEntryFilters) { await delay(250); return entries.filter(entry => { const search = filters?.search?.toLowerCase(); return (!search || entry.entryNumber.toLowerCase().includes(search) || entry.reference?.toLowerCase().includes(search) || entry.description?.toLowerCase().includes(search)) && (!filters?.status || filters.status === 'ALL' || entry.status === filters.status) && (!filters?.journalId || entry.journalId === filters.journalId) && (!filters?.fromDate || entry.entryDate >= filters.fromDate) && (!filters?.toDate || entry.entryDate <= filters.toDate); }); }, async createJournalEntry(input: JournalEntryInput) { await delay(300); const enriched = await enrich(input); const entry: JournalEntry = { id: `je-${nextId++}`, ...input, ...enriched, status: 'Draft', reference: input.reference || '', description: input.description || '' }; entries = [...entries, entry]; return entry; }, async updateJournalEntry(id: string, input: JournalEntryInput) { await delay(300); const existing = entries.find(entry => entry.id === id); if (!existing || existing.status !== 'Draft') throw new Error('Only draft journal entries can be edited.'); const updated: JournalEntry = { ...existing, ...input, ...(await enrich(input)), reference: input.reference || '', description: input.description || '' }; entries = entries.map(entry => entry.id === id ? updated : entry); return updated; }, async postJournalEntry(id: string) { await delay(250); const entry = entries.find(value => value.id === id); if (!entry || entry.status !== 'Draft') throw new Error('Only draft journal entries can be posted.'); validate(entry.lines); const updated = { ...entry, status: 'Posted' as const }; entries = entries.map(value => value.id === id ? updated : value); return updated; }, async cancelJournalEntry(id: string) { await delay(250); const entry = entries.find(value => value.id === id); if (!entry || entry.status === 'Cancelled') throw new Error('Journal entry cannot be cancelled.'); const updated = { ...entry, status: 'Cancelled' as const }; entries = entries.map(value => value.id === id ? updated : value); return updated; } };
+import type { JournalEntry, JournalEntryFilters, JournalEntryInput, JournalEntryStatus } from '@/types/journalEntry';
+import { api, num } from '@/lib/api';
+
+interface BackendItem {
+  id: string;
+  entry_id: string;
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  analytic_account_id: string | null;
+  debit: number | string;
+  credit: number | string;
+}
+interface BackendEntry {
+  id: string;
+  date: string;
+  reference: string;
+  status: string;
+  journal_id: string | null;
+  journal_name: string | null;
+  total_debit: number | string;
+  total_credit: number | string;
+  balanced: boolean;
+  items: BackendItem[];
+}
+
+function toEntry(e: BackendEntry): JournalEntry {
+  return {
+    id: e.id,
+    entryNumber: e.reference || `JE-${e.id.slice(0, 8).toUpperCase()}`,
+    entryDate: e.date,
+    journalId: e.journal_id ?? '',
+    journalName: e.journal_name ?? undefined,
+    reference: e.reference,
+    description: '',
+    status: (e.status as JournalEntryStatus) || 'Posted',
+    lines: e.items.map((it) => ({
+      id: it.id,
+      accountId: it.account_id,
+      accountName: it.account_name,
+      description: '',
+      debit: num(it.debit),
+      credit: num(it.credit),
+    })),
+    totalDebit: num(e.total_debit),
+    totalCredit: num(e.total_credit),
+  };
+}
+
+function toPayload(input: JournalEntryInput) {
+  return {
+    date: input.entryDate,
+    reference: input.reference || input.entryNumber || '',
+    journal_id: input.journalId || null,
+    items: input.lines.map((l) => ({
+      account_id: l.accountId,
+      debit: l.debit || 0,
+      credit: l.credit || 0,
+    })),
+  };
+}
+
+export const journalEntryService = {
+  async getJournalEntries(filters?: JournalEntryFilters): Promise<JournalEntry[]> {
+    let result = (await api.get<BackendEntry[]>('/api/journal-entries/')).map(toEntry);
+    const search = filters?.search?.toLowerCase();
+    if (search) {
+      result = result.filter(
+        (e) =>
+          e.entryNumber.toLowerCase().includes(search) ||
+          (e.reference?.toLowerCase().includes(search) ?? false) ||
+          (e.description?.toLowerCase().includes(search) ?? false),
+      );
+    }
+    if (filters?.status && filters.status !== 'ALL') result = result.filter((e) => e.status === filters.status);
+    if (filters?.journalId) result = result.filter((e) => e.journalId === filters.journalId);
+    if (filters?.fromDate) result = result.filter((e) => e.entryDate >= filters.fromDate!);
+    if (filters?.toDate) result = result.filter((e) => e.entryDate <= filters.toDate!);
+    return result;
+  },
+  async createJournalEntry(input: JournalEntryInput): Promise<JournalEntry> {
+    return toEntry(await api.post<BackendEntry>('/api/journal-entries/', toPayload(input)));
+  },
+  async updateJournalEntry(id: string, input: JournalEntryInput): Promise<JournalEntry> {
+    return toEntry(await api.put<BackendEntry>(`/api/journal-entries/${id}`, toPayload(input)));
+  },
+  async postJournalEntry(id: string): Promise<JournalEntry> {
+    return toEntry(await api.post<BackendEntry>(`/api/journal-entries/${id}/post`));
+  },
+  async cancelJournalEntry(id: string): Promise<JournalEntry> {
+    return toEntry(await api.post<BackendEntry>(`/api/journal-entries/${id}/cancel`));
+  },
+};

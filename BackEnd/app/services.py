@@ -4,7 +4,7 @@ import uuid
 
 import razorpay
 from fastapi import HTTPException
-from sqlalchemy import select, func, case
+from sqlalchemy import select, func, case, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -397,6 +397,7 @@ async def register_pnl_report(
         select(Account.type, func.coalesce(func.sum(JournalItem.debit), 0), func.coalesce(func.sum(JournalItem.credit), 0))
         .join(JournalItem, JournalItem.account_id == Account.id)
         .join(JournalEntry, JournalItem.entry_id == JournalEntry.id)
+        .where(JournalEntry.status == "Posted")
         .group_by(Account.type)
     )
     if start_date:
@@ -427,6 +428,7 @@ async def register_balance_sheet(
         select(Account.type, func.coalesce(func.sum(JournalItem.debit), 0), func.coalesce(func.sum(JournalItem.credit), 0))
         .join(JournalItem, JournalItem.account_id == Account.id)
         .join(JournalEntry, JournalItem.entry_id == JournalEntry.id)
+        .where(JournalEntry.status == "Posted")
         .group_by(Account.type)
     )
     if as_of_date:
@@ -469,6 +471,7 @@ async def register_account_balances(db: AsyncSession, as_of_date: date | None = 
         )
         .outerjoin(JournalItem, JournalItem.account_id == Account.id)
         .outerjoin(JournalEntry, JournalItem.entry_id == JournalEntry.id)
+        .where((JournalEntry.id.is_(None)) | (JournalEntry.status == "Posted"))
         .group_by(Account.id, Account.code, Account.name, Account.type)
         .order_by(Account.code)
     )
@@ -544,6 +547,7 @@ async def _analytic_actual(
         .join(JournalEntry, JournalItem.entry_id == JournalEntry.id)
         .where(
             JournalItem.analytic_account_id == analytic_account_id,
+            JournalEntry.status == "Posted",
             JournalEntry.date >= start_date,
             JournalEntry.date <= end_date,
         )
@@ -558,3 +562,367 @@ async def _analytic_actual(
         else:
             actual += debit - credit
     return money(actual)
+
+# =====================================================================
+# Lifecycle operations added so every frontend action has a real backend.
+# =====================================================================
+
+async def _load_document(db: AsyncSession, document_id: uuid.UUID, lock: bool = False):
+    stmt = (
+        select(TransactionDocument)
+        .options(
+            selectinload(TransactionDocument.lines).selectinload(DocumentLine.product),
+            selectinload(TransactionDocument.contact),
+        )
+        .where(TransactionDocument.id == document_id)
+    )
+    if lock:
+        stmt = stmt.with_for_update(of=TransactionDocument)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+def _validate_contact_for_type(doc_type: DocumentType, contact) -> None:
+    if doc_type in {DocumentType.VENDOR_BILL, DocumentType.PURCHASE_ORDER} and contact.type.value not in {"Vendor", "Both"}:
+        raise HTTPException(400, "This document requires a Vendor or Both contact.")
+    if doc_type in {DocumentType.CUSTOMER_INVOICE, DocumentType.SALES_ORDER} and contact.type.value not in {"Customer", "Both"}:
+        raise HTTPException(400, "This document requires a Customer or Both contact.")
+
+
+async def update_document(db, document_id, contact_id, doc_date, due_date, lines):
+    """Edit a DRAFT document: replace header + lines and recompute totals."""
+    from app.models.domain import Contact
+    doc = await _load_document(db, document_id, lock=True)
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+    if doc.status != DocumentStatus.DRAFT:
+        raise HTTPException(400, "Only draft documents can be edited.")
+    if not lines:
+        raise HTTPException(400, "A document needs at least one line.")
+
+    contact = await db.get(Contact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found.")
+    _validate_contact_for_type(doc.type, contact)
+
+    subtotal_sum = ZERO
+    tax_sum = ZERO
+    computed = []
+    for line in lines:
+        product = await db.get(Product, line["product_id"])
+        if not product:
+            raise HTTPException(404, f"Product {line['product_id']} not found.")
+        qty = int(line["quantity"])
+        unit = money(line["unit_price"])
+        rate = money(line.get("tax_rate", 0))
+        line_subtotal = money(Decimal(qty) * unit)
+        line_tax = money(line_subtotal * rate / Decimal("100.00"))
+        subtotal_sum += line_subtotal
+        tax_sum += line_tax
+        computed.append((line, line_subtotal))
+
+    for existing in list(doc.lines):
+        await db.delete(existing)
+    await db.flush()
+
+    doc.contact_id = contact_id
+    doc.date = doc_date
+    doc.due_date = due_date
+    doc.subtotal = subtotal_sum
+    doc.tax_amount = tax_sum
+    doc.total = money(subtotal_sum + tax_sum)
+    for line, line_subtotal in computed:
+        db.add(DocumentLine(
+            document_id=doc.id,
+            product_id=line["product_id"],
+            analytic_account_id=line.get("analytic_account_id"),
+            quantity=int(line["quantity"]),
+            unit_price=money(line["unit_price"]),
+            tax_rate=money(line.get("tax_rate", 0)),
+            subtotal=line_subtotal,
+        ))
+    await db.commit()
+    return await _load_document(db, document_id)
+
+
+async def delete_document(db, document_id):
+    """Delete a DRAFT document (and its lines). Posted docs must be cancelled instead."""
+    doc = await _load_document(db, document_id, lock=True)
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+    if doc.status != DocumentStatus.DRAFT:
+        raise HTTPException(400, "Only draft documents can be deleted. Cancel a posted document instead.")
+    await db.delete(doc)
+    await db.commit()
+
+
+async def cancel_document(db, document_id):
+    """Cancel a document. Draft -> just cancel. Confirmed (unpaid) -> void its
+    journal entry, reverse stock, cancel. Documents with payments are rejected."""
+    doc = await _load_document(db, document_id, lock=True)
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+    if doc.status == DocumentStatus.CANCELLED:
+        raise HTTPException(400, "Document is already cancelled.")
+    if money(doc.amount_paid) > ZERO:
+        raise HTTPException(400, "Cancel the payments on this document before cancelling the document.")
+
+    if doc.status == DocumentStatus.CONFIRMED:
+        if doc.journal_entry_id:
+            je = await db.get(JournalEntry, doc.journal_entry_id)
+            if je:
+                je.status = "Cancelled"
+        for line in doc.lines:
+            product = await db.get(Product, line.product_id, with_for_update=True)
+            if product and product.type == ProductType.GOODS:
+                if doc.type == DocumentType.VENDOR_BILL:
+                    product.stock_quantity -= line.quantity
+                else:
+                    product.stock_quantity += line.quantity
+    doc.status = DocumentStatus.CANCELLED
+    await db.commit()
+    return await _load_document(db, document_id)
+
+
+async def _entry_is_system_generated(db, entry_id) -> bool:
+    doc_ref = await db.scalar(select(TransactionDocument.id).where(TransactionDocument.journal_entry_id == entry_id).limit(1))
+    if doc_ref:
+        return True
+    pay_ref = await db.scalar(select(Payment.id).where(Payment.journal_entry_id == entry_id).limit(1))
+    return bool(pay_ref)
+
+
+async def _load_entry(db, entry_id, lock=False):
+    stmt = select(JournalEntry).options(selectinload(JournalEntry.items).selectinload(JournalItem.account), selectinload(JournalEntry.journal)).where(JournalEntry.id == entry_id)
+    if lock:
+        stmt = stmt.with_for_update(of=JournalEntry)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+def _add_items(db, entry_id, items):
+    for it in items:
+        debit = money(it.get("debit", 0))
+        credit = money(it.get("credit", 0))
+        if debit < ZERO or credit < ZERO or (debit > ZERO and credit > ZERO):
+            raise HTTPException(400, "Each line must contain either a debit or a credit, never both.")
+        db.add(JournalItem(
+            entry_id=entry_id,
+            account_id=it["account_id"],
+            analytic_account_id=it.get("analytic_account_id"),
+            debit=debit,
+            credit=credit,
+        ))
+
+
+async def create_manual_journal_entry(db, entry_date, reference, journal_id, items):
+    """Create a DRAFT manual journal entry (not counted in reports until posted)."""
+    if not items:
+        raise HTTPException(400, "A journal entry needs at least one line.")
+    entry = JournalEntry(date=entry_date, reference=reference or "", status="Draft", journal_id=journal_id)
+    db.add(entry)
+    await db.flush()
+    _add_items(db, entry.id, items)
+    await db.commit()
+    return await _load_entry(db, entry.id)
+
+
+async def update_manual_journal_entry(db, entry_id, entry_date, reference, journal_id, items):
+    entry = await _load_entry(db, entry_id, lock=True)
+    if not entry:
+        raise HTTPException(404, "Journal entry not found.")
+    if await _entry_is_system_generated(db, entry_id):
+        raise HTTPException(400, "System-generated entries cannot be edited. Cancel the source document or payment instead.")
+    if entry.status != "Draft":
+        raise HTTPException(400, "Only draft journal entries can be edited.")
+    if not items:
+        raise HTTPException(400, "A journal entry needs at least one line.")
+    # Replace lines through the ORM relationship so delete-orphan removes the old
+    # rows and the new ones are inserted consistently in one unit of work.
+    new_items = []
+    for it in items:
+        debit = money(it.get("debit", 0))
+        credit = money(it.get("credit", 0))
+        if debit < ZERO or credit < ZERO or (debit > ZERO and credit > ZERO):
+            raise HTTPException(400, "Each line must contain either a debit or a credit, never both.")
+        new_items.append(JournalItem(
+            account_id=it["account_id"],
+            analytic_account_id=it.get("analytic_account_id"),
+            debit=debit,
+            credit=credit,
+        ))
+    entry.items = new_items
+    entry.date = entry_date
+    entry.reference = reference or ""
+    entry.journal_id = journal_id
+    await db.commit()
+    return await _load_entry(db, entry_id)
+
+
+async def post_manual_journal_entry(db, entry_id):
+    entry = await _load_entry(db, entry_id, lock=True)
+    if not entry:
+        raise HTTPException(404, "Journal entry not found.")
+    if entry.status != "Draft":
+        raise HTTPException(400, "Only draft journal entries can be posted.")
+    debit_total = sum((money(i.debit) for i in entry.items), ZERO)
+    credit_total = sum((money(i.credit) for i in entry.items), ZERO)
+    if debit_total != credit_total:
+        raise HTTPException(400, f"Journal entry is unbalanced. Debit={debit_total}, Credit={credit_total}.")
+    if debit_total <= ZERO:
+        raise HTTPException(400, "Journal entry must contain a positive accounting amount.")
+    entry.status = "Posted"
+    await db.commit()
+    return await _load_entry(db, entry_id)
+
+
+async def cancel_manual_journal_entry(db, entry_id):
+    entry = await _load_entry(db, entry_id, lock=True)
+    if not entry:
+        raise HTTPException(404, "Journal entry not found.")
+    if await _entry_is_system_generated(db, entry_id):
+        raise HTTPException(400, "System-generated entries cannot be cancelled. Cancel the source document or payment instead.")
+    if entry.status == "Cancelled":
+        raise HTTPException(400, "Journal entry is already cancelled.")
+    entry.status = "Cancelled"
+    await db.commit()
+    return await _load_entry(db, entry_id)
+
+
+async def _payable_doc(db, document_id, lock=True):
+    stmt = select(TransactionDocument).where(TransactionDocument.id == document_id)
+    if lock:
+        stmt = stmt.with_for_update()
+    doc = (await db.execute(stmt)).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+    if doc.type not in {DocumentType.VENDOR_BILL, DocumentType.CUSTOMER_INVOICE}:
+        raise HTTPException(400, "Payments can only be registered against Vendor Bills or Customer Invoices.")
+    return doc
+
+
+async def _draft_payment_sum(db, document_id, exclude_id=None) -> Decimal:
+    stmt = select(func.coalesce(func.sum(Payment.amount), 0)).where(
+        Payment.document_id == document_id, Payment.status == "Draft"
+    )
+    if exclude_id:
+        stmt = stmt.where(Payment.id != exclude_id)
+    return money(await db.scalar(stmt) or 0)
+
+
+async def create_draft_payment(db, document_id, journal_id, payment_date, amount, reference, method):
+    amount = require_positive_amount(amount)
+    doc = await _payable_doc(db, document_id)
+    if doc.status not in {DocumentStatus.CONFIRMED, DocumentStatus.PARTIALLY_PAID}:
+        raise HTTPException(400, "Only Confirmed or Partially Paid documents can be paid.")
+    outstanding = money(doc.total - doc.amount_paid)
+    available = money(outstanding - await _draft_payment_sum(db, document_id))
+    if amount > available:
+        raise HTTPException(400, f"Amount exceeds what can still be allocated (available: {available}).")
+    journal = await db.get(Journal, journal_id)
+    if not journal or journal.type not in {"Bank", "Cash"}:
+        raise HTTPException(400, "Payment journal must be a Bank or Cash journal.")
+    ref = (reference or f"Payment {str(uuid.uuid4())[:8]}")[:100]
+    payment = Payment(
+        document_id=doc.id,
+        journal_id=journal_id,
+        journal_entry_id=None,
+        payment_date=payment_date,
+        amount=amount,
+        reference=ref,
+        provider="manual",
+        status="Draft",
+        method=method,
+    )
+    db.add(payment)
+    await db.commit()
+    await db.refresh(payment)
+    return payment
+
+
+async def update_payment(db, payment_id, journal_id, payment_date, amount, reference, method):
+    payment = (await db.execute(select(Payment).where(Payment.id == payment_id).with_for_update())).scalar_one_or_none()
+    if not payment:
+        raise HTTPException(404, "Payment not found.")
+    if payment.status != "Draft":
+        raise HTTPException(400, "Only draft payments can be edited.")
+    amount = require_positive_amount(amount)
+    doc = await _payable_doc(db, payment.document_id)
+    outstanding = money(doc.total - doc.amount_paid)
+    available = money(outstanding - await _draft_payment_sum(db, payment.document_id, exclude_id=payment.id))
+    if amount > available:
+        raise HTTPException(400, f"Amount exceeds what can still be allocated (available: {available}).")
+    journal = await db.get(Journal, journal_id)
+    if not journal or journal.type not in {"Bank", "Cash"}:
+        raise HTTPException(400, "Payment journal must be a Bank or Cash journal.")
+    payment.journal_id = journal_id
+    payment.payment_date = payment_date
+    payment.amount = amount
+    payment.reference = (reference or payment.reference)[:100]
+    payment.method = method
+    await db.commit()
+    await db.refresh(payment)
+    return payment
+
+
+async def post_payment(db, payment_id):
+    payment = (await db.execute(select(Payment).where(Payment.id == payment_id).with_for_update())).scalar_one_or_none()
+    if not payment:
+        raise HTTPException(404, "Payment not found.")
+    if payment.status != "Draft":
+        raise HTTPException(400, "Only draft payments can be posted.")
+    doc = await _payable_doc(db, payment.document_id)
+    if doc.status not in {DocumentStatus.CONFIRMED, DocumentStatus.PARTIALLY_PAID}:
+        raise HTTPException(400, "Only Confirmed or Partially Paid documents can be paid.")
+    amount = money(payment.amount)
+    outstanding = money(doc.total - doc.amount_paid)
+    if amount > outstanding:
+        raise HTTPException(400, f"Payment amount {amount} exceeds outstanding {outstanding}.")
+    journal = await db.get(Journal, payment.journal_id)
+    if not journal or journal.type not in {"Bank", "Cash"} or not journal.default_account_id:
+        raise HTTPException(400, "Payment journal must be a Bank or Cash journal with a default account.")
+    accounts = await get_account_map(db)
+    debtor = accounts.get("1003")
+    creditor = accounts.get("2001")
+    if not debtor or not creditor:
+        raise HTTPException(500, "Debtors/Creditors accounts are missing. Run seed.py.")
+    if doc.type == DocumentType.VENDOR_BILL:
+        lines = [
+            {"account_id": creditor.id, "debit": amount, "credit": ZERO},
+            {"account_id": journal.default_account_id, "debit": ZERO, "credit": amount},
+        ]
+    else:
+        lines = [
+            {"account_id": journal.default_account_id, "debit": amount, "credit": ZERO},
+            {"account_id": debtor.id, "debit": ZERO, "credit": amount},
+        ]
+    entry = await create_balanced_entry(
+        db, entry_date=payment.payment_date, reference=payment.reference, journal_id=journal.id, lines=lines
+    )
+    payment.journal_entry_id = entry.id
+    payment.status = "Posted"
+    doc.amount_paid = money(doc.amount_paid + amount)
+    doc.status = DocumentStatus.PAID if doc.amount_paid == money(doc.total) else DocumentStatus.PARTIALLY_PAID
+    await db.commit()
+    await db.refresh(payment)
+    return payment
+
+
+async def cancel_payment(db, payment_id):
+    payment = (await db.execute(select(Payment).where(Payment.id == payment_id).with_for_update())).scalar_one_or_none()
+    if not payment:
+        raise HTTPException(404, "Payment not found.")
+    if payment.status == "Cancelled":
+        raise HTTPException(400, "Payment is already cancelled.")
+    if payment.status == "Posted":
+        doc = await _payable_doc(db, payment.document_id)
+        if payment.journal_entry_id:
+            je = await db.get(JournalEntry, payment.journal_entry_id)
+            if je:
+                je.status = "Cancelled"
+        doc.amount_paid = money(doc.amount_paid - payment.amount)
+        if doc.amount_paid < ZERO:
+            doc.amount_paid = ZERO
+        doc.status = DocumentStatus.CONFIRMED if doc.amount_paid == ZERO else DocumentStatus.PARTIALLY_PAID
+    payment.status = "Cancelled"
+    await db.commit()
+    await db.refresh(payment)
+    return payment

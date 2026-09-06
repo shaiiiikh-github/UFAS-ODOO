@@ -101,3 +101,6 @@ export const api = {
 };
 
 export { BASE_URL };
+
+// Coerce a backend numeric field (Decimal may arrive as number or string) to number.
+export const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));

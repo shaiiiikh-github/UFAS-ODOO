@@ -1,302 +1,130 @@
-import type {
-  CustomerPayment,
-  CustomerPaymentInput,
-  CustomerPaymentFilters,
-} from '@/types/customerPayment';
+import type { CustomerPayment, CustomerPaymentFilters, CustomerPaymentInput, CustomerPaymentStatus, PaymentMethod } from '@/types/customerPayment';
 import type { CustomerInvoice } from '@/types/customerInvoice';
+import { api, ApiError, num } from '@/lib/api';
+import { fetchDocuments, numberFor, resolvePaymentJournalId, type BackendDoc } from '@/lib/documents';
+import { customerInvoiceService } from '@/services/customerInvoiceService';
+import { journalService } from '@/services/journalService';
 
-// Mock invoices (to get invoice data)
-const mockInvoices: CustomerInvoice[] = [
-  {
-    id: '1',
-    invoiceNumber: 'INV-1001',
-    invoiceDate: '2025-01-20',
-    dueDate: '2025-02-20',
-    salesOrderId: '1',
-    salesOrderNumber: 'SO-1001',
-    customerId: '1',
-    customerName: 'Rahul Kumar',
-    status: 'Posted',
-    items: [],
-    subtotal: 98000,
-    taxAmount: 17640,
-    totalAmount: 115640,
-    paidAmount: 0,
-    balanceDue: 115640,
-    notes: '',
-  },
-  {
-    id: '2',
-    invoiceNumber: 'INV-1002',
-    invoiceDate: '2025-02-05',
-    dueDate: '2025-03-05',
-    customerId: '4',
-    customerName: 'Sneha Patel',
-    status: 'Posted',
-    items: [],
-    subtotal: 45000,
-    taxAmount: 8100,
-    totalAmount: 53100,
-    paidAmount: 0,
-    balanceDue: 53100,
-    notes: '',
-  },
-  {
-    id: '3',
-    invoiceNumber: 'INV-1003',
-    invoiceDate: '2025-02-10',
-    dueDate: '2025-03-10',
-    customerId: '3',
-    customerName: 'Arjun Mehta',
-    status: 'Partially Paid',
-    items: [],
-    subtotal: 5000,
-    taxAmount: 900,
-    totalAmount: 5900,
-    paidAmount: 2000,
-    balanceDue: 3900,
-    notes: '',
-  },
-  {
-    id: '4',
-    invoiceNumber: 'INV-1004',
-    invoiceDate: '2025-02-15',
-    dueDate: '2025-03-15',
-    customerId: '1',
-    customerName: 'Rahul Kumar',
-    status: 'Paid',
-    items: [],
-    subtotal: 30000,
-    taxAmount: 5400,
-    totalAmount: 35400,
-    paidAmount: 35400,
-    balanceDue: 0,
-    notes: '',
-  },
-];
+interface BackendPayment {
+  id: string;
+  document_id: string;
+  journal_id: string;
+  journal_entry_id: string | null;
+  payment_date: string;
+  amount: number | string;
+  reference: string;
+  provider: string;
+  status: string;
+  method: string | null;
+}
 
-// Mock payments
-const mockPayments: CustomerPayment[] = [
-  {
-    id: '1',
-    paymentNumber: 'PMT-0001',
-    paymentDate: '2025-01-25',
-    customerId: '1',
-    customerName: 'Rahul Kumar',
-    customerInvoiceId: '1',
-    invoiceNumber: 'INV-1001',
-    amount: 50000,
-    paymentMethod: 'Bank',
-    reference: 'NEFT-123456',
-    notes: 'Partial payment',
-    status: 'Posted',
-  },
-  {
-    id: '2',
-    paymentNumber: 'PMT-0002',
-    paymentDate: '2025-02-12',
-    customerId: '3',
-    customerName: 'Arjun Mehta',
-    customerInvoiceId: '3',
-    invoiceNumber: 'INV-1003',
-    amount: 2000,
-    paymentMethod: 'Cash',
-    reference: '',
-    notes: 'Partial payment',
-    status: 'Posted',
-  },
-];
-
-const payments = [...mockPayments];
-let nextPaymentId = payments.length + 1;
-let nextPaymentNumber = 3; // for PMT-0003
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Helper to get invoice details
-const getInvoiceDetails = (invoiceId: string) => {
-  const invoice = mockInvoices.find(inv => inv.id === invoiceId);
-  if (!invoice) throw new Error('Invoice not found');
-  return invoice;
-};
-
-const generatePaymentNumber = () => {
-  const prefix = 'PMT-';
-  const num = String(nextPaymentNumber++).padStart(4, '0');
-  return prefix + num;
-};
+async function methodByJournal(): Promise<Map<string, PaymentMethod>> {
+  const journals = await journalService.getJournals();
+  return new Map(journals.map((j) => [j.id, (j.type === 'cash' ? 'Cash' : 'Bank') as PaymentMethod]));
+}
 
 export const customerPaymentService = {
-  // Get all payments with filters
   getPayments: async (filters?: CustomerPaymentFilters): Promise<CustomerPayment[]> => {
-    await delay(500);
-    let result = [...payments];
+    const [payments, docs, methodMap] = await Promise.all([
+      api.get<BackendPayment[]>('/api/payments/'),
+      fetchDocuments(),
+      methodByJournal(),
+    ]);
+    const docById = new Map<string, BackendDoc>(docs.map((d) => [d.id, d]));
+    let result: CustomerPayment[] = payments
+      .map((p) => ({ p, doc: docById.get(p.document_id) }))
+      .filter((x): x is { p: BackendPayment; doc: BackendDoc } => !!x.doc && x.doc.type === 'Customer Invoice')
+      .map(({ p, doc }) => ({
+        id: p.id,
+        paymentNumber: numberFor('PAY', p.id),
+        paymentDate: p.payment_date,
+        customerId: doc.contact_id,
+        customerName: doc.contact_name ?? undefined,
+        customerInvoiceId: doc.id,
+        invoiceNumber: numberFor('INV', doc.id),
+        amount: num(p.amount),
+        paymentMethod: (p.method as PaymentMethod) ?? methodMap.get(p.journal_id) ?? 'Bank',
+        reference: p.reference,
+        notes: undefined,
+        status: (p.status as CustomerPaymentStatus) || 'Posted',
+      }));
 
-    if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(p =>
-        p.paymentNumber.toLowerCase().includes(searchLower) ||
-        (p.customerName && p.customerName.toLowerCase().includes(searchLower)) ||
-        (p.invoiceNumber && p.invoiceNumber.toLowerCase().includes(searchLower)) ||
-        (p.reference && p.reference.toLowerCase().includes(searchLower))
-      );
-    }
-
-    if (filters?.status && filters.status !== 'ALL') {
-      result = result.filter(p => p.status === filters.status);
-    }
-
-    if (filters?.customerId) {
-      result = result.filter(p => p.customerId === filters.customerId);
-    }
-
-    if (filters?.paymentMethod && filters.paymentMethod !== 'ALL') {
-      result = result.filter(p => p.paymentMethod === filters.paymentMethod);
-    }
-
-    if (filters?.fromDate) {
-      result = result.filter(p => p.paymentDate >= filters.fromDate!);
-    }
-
-    if (filters?.toDate) {
-      result = result.filter(p => p.paymentDate <= filters.toDate!);
-    }
-
+    const search = filters?.search?.toLowerCase();
+    if (search) result = result.filter((p) => p.paymentNumber.toLowerCase().includes(search) || (p.customerName?.toLowerCase().includes(search) ?? false) || (p.invoiceNumber?.toLowerCase().includes(search) ?? false) || (p.reference?.toLowerCase().includes(search) ?? false));
+    if (filters?.status && filters.status !== 'ALL') result = result.filter((p) => p.status === filters.status);
+    if (filters?.customerId) result = result.filter((p) => p.customerId === filters.customerId);
+    if (filters?.paymentMethod && filters.paymentMethod !== 'ALL') result = result.filter((p) => p.paymentMethod === filters.paymentMethod);
+    if (filters?.fromDate) result = result.filter((p) => p.paymentDate >= filters.fromDate!);
+    if (filters?.toDate) result = result.filter((p) => p.paymentDate <= filters.toDate!);
     return result;
   },
 
-  // Get a single payment
-  getPayment: async (id: string): Promise<CustomerPayment | undefined> => {
-    await delay(300);
-    return payments.find(p => p.id === id);
-  },
+  getPayment: async (id: string): Promise<CustomerPayment | undefined> => (await customerPaymentService.getPayments()).find((p) => p.id === id),
 
-  // Get eligible invoices for payment (Posted or Partially Paid with balance > 0)
-  getEligibleInvoices: async (): Promise<CustomerInvoice[]> => {
-    await delay(400);
-    return mockInvoices.filter(inv =>
-      (inv.status === 'Posted' || inv.status === 'Partially Paid') && inv.balanceDue > 0
-    );
-  },
+  getEligibleInvoices: async (): Promise<CustomerInvoice[]> =>
+    (await customerInvoiceService.getInvoices()).filter((i) => (i.status === 'Posted' || i.status === 'Partially Paid') && i.balanceDue > 0),
 
-  // Create payment
+  // Create a DRAFT payment. It affects the ledger only after postPayment.
   createPayment: async (input: CustomerPaymentInput): Promise<CustomerPayment> => {
-    await delay(600);
-    // Validate invoice
-    const invoice = getInvoiceDetails(input.customerInvoiceId);
-    if (invoice.balanceDue < input.amount) {
-      throw new Error('Payment amount exceeds the invoice balance due.');
-    }
-    const newPayment: CustomerPayment = {
-      id: String(nextPaymentId++),
-      paymentNumber: generatePaymentNumber(),
-      paymentDate: input.paymentDate,
-      customerId: input.customerId,
-      customerName: invoice.customerName,
-      customerInvoiceId: input.customerInvoiceId,
-      invoiceNumber: invoice.invoiceNumber,
+    const journalId = await resolvePaymentJournalId(input.paymentMethod);
+    const draft = await api.post<BackendPayment>('/api/payments/', {
+      document_id: input.customerInvoiceId,
+      journal_id: journalId,
+      payment_date: input.paymentDate,
       amount: input.amount,
-      paymentMethod: input.paymentMethod,
       reference: input.reference || '',
+      method: input.paymentMethod,
+    });
+    return {
+      id: draft.id,
+      paymentNumber: numberFor('PAY', draft.id),
+      paymentDate: draft.payment_date,
+      customerId: input.customerId,
+      customerName: undefined,
+      customerInvoiceId: input.customerInvoiceId,
+      invoiceNumber: numberFor('INV', input.customerInvoiceId),
+      amount: num(draft.amount),
+      paymentMethod: (draft.method as PaymentMethod) ?? input.paymentMethod,
+      reference: draft.reference,
       notes: input.notes || '',
-      status: 'Draft',
+      status: (draft.status as CustomerPaymentStatus) || 'Draft',
     };
-    payments.push(newPayment);
-    return newPayment;
   },
 
-  // Update payment (only Draft)
-  updatePayment: async (id: string, input: Partial<CustomerPaymentInput>): Promise<CustomerPayment> => {
-    await delay(600);
-    const index = payments.findIndex(p => p.id === id);
-    if (index === -1) throw new Error('Payment not found');
-    const existing = payments[index];
-    if (existing.status !== 'Draft') {
-      throw new Error('Only Draft payments can be edited.');
-    }
-    const updated = { ...existing };
-    if (input.paymentDate) updated.paymentDate = input.paymentDate;
-    if (input.customerInvoiceId) {
-      // Validate invoice
-      const invoice = getInvoiceDetails(input.customerInvoiceId);
-      updated.customerInvoiceId = input.customerInvoiceId;
-      updated.invoiceNumber = invoice.invoiceNumber;
-      updated.customerId = invoice.customerId;
-      updated.customerName = invoice.customerName;
-    }
-    if (input.amount !== undefined) {
-      // Validate against invoice
-      const invoice = getInvoiceDetails(updated.customerInvoiceId);
-      if (invoice.balanceDue < input.amount) {
-        throw new Error('Payment amount exceeds the invoice balance due.');
-      }
-      updated.amount = input.amount;
-    }
-    if (input.paymentMethod) updated.paymentMethod = input.paymentMethod;
-    if (input.reference !== undefined) updated.reference = input.reference;
-    if (input.notes !== undefined) updated.notes = input.notes;
-    payments[index] = updated;
-    return updated;
+  updatePayment: async (id: string, data: Partial<CustomerPaymentInput>): Promise<CustomerPayment> => {
+    const current = await customerPaymentService.getPayment(id);
+    if (!current) throw new ApiError(404, 'Payment not found.');
+    const method = data.paymentMethod ?? current.paymentMethod;
+    const journalId = await resolvePaymentJournalId(method);
+    const updated = await api.put<BackendPayment>(`/api/payments/${id}`, {
+      journal_id: journalId,
+      payment_date: data.paymentDate ?? current.paymentDate,
+      amount: data.amount ?? current.amount,
+      reference: (data.reference ?? current.reference) || '',
+      method,
+    });
+    return {
+      ...current,
+      paymentDate: updated.payment_date,
+      amount: num(updated.amount),
+      paymentMethod: (updated.method as PaymentMethod) ?? method,
+      reference: updated.reference,
+      notes: data.notes ?? current.notes,
+      status: (updated.status as CustomerPaymentStatus) || current.status,
+    };
   },
 
-  // Post payment
   postPayment: async (id: string): Promise<CustomerPayment> => {
-    await delay(500);
-    const index = payments.findIndex(p => p.id === id);
-    if (index === -1) throw new Error('Payment not found');
-    const payment = payments[index];
-    if (payment.status !== 'Draft') {
-      throw new Error('Only Draft payments can be posted.');
-    }
-    payment.status = 'Posted';
-    payments[index] = payment;
-    // Update invoice balance
-    const invoice = mockInvoices.find(inv => inv.id === payment.customerInvoiceId);
-    if (invoice) {
-      invoice.paidAmount += payment.amount;
-      invoice.balanceDue = invoice.totalAmount - invoice.paidAmount;
-      if (invoice.balanceDue === 0) {
-        invoice.status = 'Paid';
-      } else {
-        invoice.status = 'Partially Paid';
-      }
-    }
-    return payment;
+    await api.post<BackendPayment>(`/api/payments/${id}/post`);
+    const p = await customerPaymentService.getPayment(id);
+    if (!p) throw new ApiError(404, 'Payment not found after posting.');
+    return p;
   },
 
-  // Cancel payment
   cancelPayment: async (id: string): Promise<CustomerPayment> => {
-    await delay(500);
-    const index = payments.findIndex(p => p.id === id);
-    if (index === -1) throw new Error('Payment not found');
-    const payment = payments[index];
-    if (payment.status === 'Cancelled') {
-      throw new Error('Payment already cancelled.');
-    }
-    
-    // Store original status before changing
-    const wasPosted = payment.status === 'Posted';
-    
-    // Change status to Cancelled
-    payment.status = 'Cancelled';
-    payments[index] = payment;
-    
-    // Reverse the payment effect on the invoice if it was Posted
-    if (wasPosted) {
-      const invoice = mockInvoices.find(inv => inv.id === payment.customerInvoiceId);
-      if (invoice) {
-        invoice.paidAmount -= payment.amount;
-        invoice.balanceDue = invoice.totalAmount - invoice.paidAmount;
-        if (invoice.balanceDue === 0) {
-          invoice.status = 'Paid';
-        } else if (invoice.paidAmount === 0) {
-          invoice.status = 'Posted';
-        } else {
-          invoice.status = 'Partially Paid';
-        }
-      }
-    }
-    
-    return payment;
+    await api.post<BackendPayment>(`/api/payments/${id}/cancel`);
+    const p = await customerPaymentService.getPayment(id);
+    if (!p) throw new ApiError(404, 'Payment not found after cancelling.');
+    return p;
   },
 };

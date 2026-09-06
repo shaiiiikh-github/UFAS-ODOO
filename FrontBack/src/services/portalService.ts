@@ -1,19 +1,84 @@
 import type { PortalDashboard, PortalInvoice, PortalOrder, PortalPayment, PortalRole } from '@/types/portal';
+import { api, num } from '@/lib/api';
+import { fetchDocuments, numberFor, type BackendDoc } from '@/lib/documents';
+import { journalService } from '@/services/journalService';
 
-type PartnerData = { invoices: PortalInvoice[]; orders: PortalOrder[]; payments: PortalPayment[] };
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const partners: Record<PortalRole, Record<string, PartnerData>> = {
-  CUSTOMER: {
-    'customer-rahul': { invoices: [{ id: 'ci-1', number: 'INV-1001', date: '2025-02-05', dueDate: '2025-03-05', total: 118000, paid: 50000, balance: 68000, status: 'Partially Paid' }, { id: 'ci-2', number: 'INV-1002', date: '2025-02-12', dueDate: '2025-03-12', total: 35400, paid: 0, balance: 35400, status: 'Posted' }], orders: [{ id: 'so-1', number: 'SO-1001', date: '2025-01-15', total: 115640, status: 'Confirmed' }], payments: [{ id: 'cp-1', number: 'CP-1001', date: '2025-02-18', amount: 50000, method: 'Bank', reference: 'UTR-10922' }] },
-  },
-  VENDOR: {
-    'vendor-priya': { invoices: [{ id: 'vb-1', number: 'VB-1001', date: '2025-02-05', dueDate: '2025-03-05', total: 63720, paid: 0, balance: 63720, status: 'Posted' }], orders: [{ id: 'po-1', number: 'PO-1001', date: '2025-02-03', total: 63720, status: 'Confirmed' }], payments: [] },
-  },
-};
-const dataFor = (role: PortalRole, partnerId: string): PartnerData => partners[role][partnerId] ?? { invoices: [], orders: [], payments: [] };
+interface BackendPayment {
+  id: string;
+  document_id: string;
+  journal_id: string;
+  payment_date: string;
+  amount: number | string;
+  reference: string;
+}
+
+function toPortalInvoice(d: BackendDoc): PortalInvoice {
+  return {
+    id: d.id,
+    number: numberFor(d.type === 'Customer Invoice' ? 'INV' : 'BILL', d.id),
+    date: d.date,
+    dueDate: undefined,
+    total: num(d.total),
+    paid: num(d.amount_paid),
+    balance: num(d.outstanding_amount),
+    status: d.status === 'Confirmed' ? 'Posted' : d.status,
+  };
+}
+function toPortalOrder(d: BackendDoc): PortalOrder {
+  return {
+    id: d.id,
+    number: numberFor(d.type === 'Sales Order' ? 'SO' : 'PO', d.id),
+    date: d.date,
+    total: num(d.total),
+    status: d.status,
+  };
+}
+
+// The backend scopes /api/documents/ and /api/payments/ to the logged-in contact,
+// so role/partnerId are not needed to fetch the right rows.
+async function portalDocs(): Promise<BackendDoc[]> {
+  return fetchDocuments();
+}
+
 export const portalService = {
-  async getDashboard(role: PortalRole, partnerId: string): Promise<PortalDashboard> { await delay(200); const data = dataFor(role, partnerId); const open = data.invoices.filter(invoice => invoice.balance > 0); return { role, openCount: open.length, outstandingAmount: open.reduce((sum, invoice) => sum + invoice.balance, 0), recentOrders: data.orders, recentPayments: data.payments }; },
-  async getInvoices(role: PortalRole, partnerId: string) { await delay(200); return dataFor(role, partnerId).invoices; },
-  async getOrders(role: PortalRole, partnerId: string) { await delay(200); return dataFor(role, partnerId).orders; },
-  async getPayments(role: PortalRole, partnerId: string) { await delay(200); return dataFor(role, partnerId).payments; },
+  async getInvoices(_role: PortalRole, _partnerId: string): Promise<PortalInvoice[]> {
+    return (await portalDocs()).filter((d) => d.type === 'Customer Invoice' || d.type === 'Vendor Bill').map(toPortalInvoice);
+  },
+  async getOrders(_role: PortalRole, _partnerId: string): Promise<PortalOrder[]> {
+    return (await portalDocs()).filter((d) => d.type === 'Sales Order' || d.type === 'Purchase Order').map(toPortalOrder);
+  },
+  async getPayments(_role: PortalRole, _partnerId: string): Promise<PortalPayment[]> {
+    try {
+      const [payments, journals] = await Promise.all([
+        api.get<BackendPayment[]>('/api/payments/'),
+        journalService.getJournals().catch(() => []),
+      ]);
+      const method = new Map(journals.map((j) => [j.id, j.type === 'cash' ? 'Cash' : 'Bank']));
+      return payments.map((p) => ({
+        id: p.id,
+        number: numberFor('PAY', p.id),
+        date: p.payment_date,
+        amount: num(p.amount),
+        method: method.get(p.journal_id) ?? 'Bank',
+        reference: p.reference,
+      }));
+    } catch {
+      return [];
+    }
+  },
+  async getDashboard(role: PortalRole, partnerId: string): Promise<PortalDashboard> {
+    const [invoices, orders, payments] = await Promise.all([
+      portalService.getInvoices(role, partnerId),
+      portalService.getOrders(role, partnerId),
+      portalService.getPayments(role, partnerId),
+    ]);
+    const open = invoices.filter((i) => i.balance > 0);
+    return {
+      role,
+      openCount: open.length,
+      outstandingAmount: open.reduce((s, i) => s + i.balance, 0),
+      recentOrders: orders.slice(0, 5),
+      recentPayments: payments.slice(0, 5),
+    };
+  },
 };

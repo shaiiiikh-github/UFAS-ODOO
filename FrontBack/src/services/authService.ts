@@ -11,7 +11,13 @@ const USER_KEY = 'ufas-auth-user';
 // linked contact's type instead of the login role.
 function mapRole(backendRole: string): UserRole {
   const normalized = backendRole.toUpperCase();
-  return normalized as UserRole;
+  if (normalized === 'ADMIN') return 'ADMIN';
+  if (normalized === 'ACCOUNTANT') return 'ACCOUNTANT';
+  // Backend "Contact" portal logins have no customer/vendor split exposed via the
+  // API (a contact user cannot read its own contact record). Default to CUSTOMER
+  // so portal routing/guards work; the portal still shows the contact's real
+  // documents (bills/POs included) regardless of this label.
+  return 'CUSTOMER';
 }
 
 interface BackendUser {

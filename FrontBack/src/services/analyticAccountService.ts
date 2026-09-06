@@ -1,59 +1,36 @@
-import type { AnalyticAccount, AnalyticAccountInput, AnalyticAccountFilters } from '@/types/analyticAccount';
+import type { AnalyticAccount, AnalyticAccountInput, AnalyticAccountFilters, AnalyticAccountType } from '@/types/analyticAccount';
+import { api } from '@/lib/api';
 
-// Mock data with default analytic accounts
-const mockAnalyticAccounts: AnalyticAccount[] = [
-  { id: '1', name: 'Retail Sales', type: 'income' },
-  { id: '2', name: 'Furniture Sales', type: 'income' },
-  { id: '3', name: 'Service Income', type: 'income' },
-  { id: '4', name: 'Office Expenses', type: 'expense' },
-  { id: '5', name: 'Transportation', type: 'expense' },
-  { id: '6', name: 'Utilities', type: 'expense' },
-  { id: '7', name: 'Marketing', type: 'expense' },
-];
-
-const analyticAccounts = [...mockAnalyticAccounts];
-let nextId = analyticAccounts.length + 1;
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+interface BackendAnalytic {
+  id: string;
+  name: string;
+  type: 'Income' | 'Expense';
+  is_active: boolean;
+}
+const IN: Record<BackendAnalytic['type'], AnalyticAccountType> = { Income: 'income', Expense: 'expense' };
+const OUT: Record<AnalyticAccountType, BackendAnalytic['type']> = { income: 'Income', expense: 'Expense' };
+function toAnalytic(a: BackendAnalytic): AnalyticAccount {
+  return { id: a.id, name: a.name, type: IN[a.type] };
+}
 
 export const analyticAccountService = {
   getAnalyticAccounts: async (filters?: AnalyticAccountFilters): Promise<AnalyticAccount[]> => {
-    await delay(500);
-    let result = [...analyticAccounts];
-
+    let result = (await api.get<BackendAnalytic[]>('/api/analytics/')).map(toAnalytic);
     if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(a => a.name.toLowerCase().includes(searchLower));
+      const q = filters.search.toLowerCase();
+      result = result.filter((a) => a.name.toLowerCase().includes(q));
     }
-
-    if (filters?.type && filters.type !== 'ALL') {
-      result = result.filter(a => a.type === filters.type);
-    }
-
+    if (filters?.type && filters.type !== 'ALL') result = result.filter((a) => a.type === filters.type);
     return result;
   },
-
-  getAnalyticAccount: async (id: string): Promise<AnalyticAccount | undefined> => {
-    await delay(300);
-    return analyticAccounts.find(a => a.id === id);
-  },
-
-  createAnalyticAccount: async (input: AnalyticAccountInput): Promise<AnalyticAccount> => {
-    await delay(600);
-    const newAccount: AnalyticAccount = {
-      ...input,
-      id: String(nextId++),
-    };
-    analyticAccounts.push(newAccount);
-    return newAccount;
-  },
-
-  updateAnalyticAccount: async (id: string, input: Partial<AnalyticAccountInput>): Promise<AnalyticAccount> => {
-    await delay(600);
-    const index = analyticAccounts.findIndex(a => a.id === id);
-    if (index === -1) throw new Error('Analytic account not found');
-    const updated = { ...analyticAccounts[index], ...input };
-    analyticAccounts[index] = updated;
-    return updated;
+  getAnalyticAccount: async (id: string): Promise<AnalyticAccount | undefined> =>
+    (await analyticAccountService.getAnalyticAccounts()).find((a) => a.id === id),
+  createAnalyticAccount: async (input: AnalyticAccountInput): Promise<AnalyticAccount> =>
+    toAnalytic(await api.post<BackendAnalytic>('/api/analytics/', { name: input.name, type: OUT[input.type] })),
+  updateAnalyticAccount: async (id: string, data: Partial<AnalyticAccountInput>): Promise<AnalyticAccount> => {
+    const body: Record<string, unknown> = {};
+    if (data.name !== undefined) body.name = data.name;
+    if (data.type !== undefined) body.type = OUT[data.type];
+    return toAnalytic(await api.put<BackendAnalytic>(`/api/analytics/${id}`, body));
   },
 };

@@ -1,130 +1,90 @@
 import type { Budget, BudgetInput, BudgetFilters } from '@/types/budget';
+import { api } from '@/lib/api';
+import { analyticAccountService } from '@/services/analyticAccountService';
 
-// Sample budgets with references to analytic accounts (IDs from analyticAccountService)
-const mockBudgets: Budget[] = [
-  {
-    id: '1',
-    name: 'Sales Target Q1',
-    period: 'Q1 2025',
-    responsible: 'Rahul Kumar',
-    plannedAmount: 500000,
-    analyticAccountId: '1', // Retail Sales
-    analyticAccountName: 'Retail Sales',
-  },
-  {
-    id: '2',
-    name: 'Marketing Budget Q2',
-    period: 'Q2 2025',
-    responsible: 'Priya Sharma',
-    plannedAmount: 75000,
-    analyticAccountId: '7', // Marketing
-    analyticAccountName: 'Marketing',
-  },
-  {
-    id: '3',
-    name: 'Office Expenses Q1',
-    period: 'Q1 2025',
-    responsible: 'Arjun Mehta',
-    plannedAmount: 120000,
-    analyticAccountId: '4', // Office Expenses
-    analyticAccountName: 'Office Expenses',
-  },
-  {
-    id: '4',
-    name: 'Sales Target Q2',
-    period: 'Q2 2025',
-    responsible: 'Rahul Kumar',
-    plannedAmount: 550000,
-    analyticAccountId: '2', // Furniture Sales
-    analyticAccountName: 'Furniture Sales',
-  },
-  {
-    id: '5',
-    name: 'Utilities Budget FY2025',
-    period: 'FY 2025',
-    responsible: 'Sneha Patel',
-    plannedAmount: 90000,
-    analyticAccountId: '6', // Utilities
-    analyticAccountName: 'Utilities',
-  },
-];
+interface BackendBudget {
+  id: string;
+  name: string;
+  analytic_account_id: string;
+  planned_amount: number | string;
+  period_start: string;
+  period_end: string;
+  responsible_person: string;
+  is_active: boolean;
+}
 
-let budgets = [...mockBudgets];
-let nextId = budgets.length + 1;
+// The frontend stores `period` as a single free-text string; the backend needs
+// two dates. Recommended input format: "YYYY-MM-DD to YYYY-MM-DD".
+// Also accepts a single "YYYY-MM" month or "YYYY" year.
+function parsePeriod(period: string): { period_start: string; period_end: string } {
+  const range = period.match(/(\d{4}-\d{2}-\d{2})\s*(?:to|-|–|—)\s*(\d{4}-\d{2}-\d{2})/i);
+  if (range) return { period_start: range[1], period_end: range[2] };
+  const month = period.match(/^(\d{4})-(\d{2})$/);
+  if (month) {
+    const y = Number(month[1]);
+    const m = Number(month[2]);
+    const last = new Date(y, m, 0).getDate();
+    return { period_start: `${month[1]}-${month[2]}-01`, period_end: `${month[1]}-${month[2]}-${String(last).padStart(2, '0')}` };
+  }
+  const year = period.match(/^(\d{4})$/);
+  if (year) return { period_start: `${year[1]}-01-01`, period_end: `${year[1]}-12-31` };
+  throw new Error('Period must be a date range like "2025-01-01 to 2025-03-31" (or a "YYYY-MM" month / "YYYY" year).');
+}
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+function toBudget(b: BackendBudget, nameById: Map<string, string>): Budget {
+  return {
+    id: b.id,
+    name: b.name,
+    period: `${b.period_start} to ${b.period_end}`,
+    responsible: b.responsible_person,
+    plannedAmount: Number(b.planned_amount),
+    analyticAccountId: b.analytic_account_id,
+    analyticAccountName: nameById.get(b.analytic_account_id),
+  };
+}
+
+async function analyticNameMap(): Promise<Map<string, string>> {
+  const analytics = await analyticAccountService.getAnalyticAccounts();
+  return new Map(analytics.map((a) => [a.id, a.name]));
+}
 
 export const budgetService = {
   getBudgets: async (filters?: BudgetFilters): Promise<Budget[]> => {
-    await delay(500);
-    let result = [...budgets];
-
+    const [raw, names] = await Promise.all([api.get<BackendBudget[]>('/api/budgets/'), analyticNameMap()]);
+    let result = raw.map((b) => toBudget(b, names));
     if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(b =>
-        b.name.toLowerCase().includes(searchLower) ||
-        b.responsible.toLowerCase().includes(searchLower) ||
-        (b.analyticAccountName && b.analyticAccountName.toLowerCase().includes(searchLower))
-      );
+      const q = filters.search.toLowerCase();
+      result = result.filter((b) => b.name.toLowerCase().includes(q) || b.responsible.toLowerCase().includes(q));
     }
-
-    if (filters?.period) {
-      result = result.filter(b => b.period === filters.period);
-    }
-
-    if (filters?.analyticAccountId) {
-      result = result.filter(b => b.analyticAccountId === filters.analyticAccountId);
-    }
-
+    if (filters?.period) result = result.filter((b) => b.period === filters.period);
+    if (filters?.analyticAccountId) result = result.filter((b) => b.analyticAccountId === filters.analyticAccountId);
     return result;
   },
-
-  getBudget: async (id: string): Promise<Budget | undefined> => {
-    await delay(300);
-    return budgets.find(b => b.id === id);
-  },
-
+  getBudget: async (id: string): Promise<Budget | undefined> => (await budgetService.getBudgets()).find((b) => b.id === id),
   createBudget: async (input: BudgetInput): Promise<Budget> => {
-    await delay(600);
-    // Resolve analytic account name from the ID (mock)
-    const analyticAccountName = mockAnalyticAccounts.find(a => a.id === input.analyticAccountId)?.name || '';
-    const newBudget: Budget = {
-      ...input,
-      id: String(nextId++),
-      analyticAccountName,
-    };
-    budgets.push(newBudget);
-    return newBudget;
+    const { period_start, period_end } = parsePeriod(input.period);
+    const created = await api.post<BackendBudget>('/api/budgets/', {
+      name: input.name,
+      analytic_account_id: input.analyticAccountId,
+      planned_amount: input.plannedAmount,
+      period_start,
+      period_end,
+      responsible_person: input.responsible,
+    });
+    return toBudget(created, await analyticNameMap());
   },
-
-  updateBudget: async (id: string, input: Partial<BudgetInput>): Promise<Budget> => {
-    await delay(600);
-    const index = budgets.findIndex(b => b.id === id);
-    if (index === -1) throw new Error('Budget not found');
-    const updated = { ...budgets[index], ...input };
-    // If analyticAccountId changed, resolve new name
-    if (input.analyticAccountId) {
-      const analyticAccountName = mockAnalyticAccounts.find(a => a.id === input.analyticAccountId)?.name || '';
-      updated.analyticAccountName = analyticAccountName;
-    }
-    budgets[index] = updated;
-    return updated;
+  updateBudget: async (id: string, data: Partial<BudgetInput>): Promise<Budget> => {
+    const body: Record<string, unknown> = {};
+    if (data.name !== undefined) body.name = data.name;
+    if (data.analyticAccountId !== undefined) body.analytic_account_id = data.analyticAccountId;
+    if (data.plannedAmount !== undefined) body.planned_amount = data.plannedAmount;
+    if (data.responsible !== undefined) body.responsible_person = data.responsible;
+    if (data.period !== undefined) Object.assign(body, parsePeriod(data.period));
+    const updated = await api.put<BackendBudget>(`/api/budgets/${id}`, body);
+    return toBudget(updated, await analyticNameMap());
   },
-
+  // Backend has no delete; archive is the soft-delete equivalent.
   deleteBudget: async (id: string): Promise<void> => {
-    await delay(400);
-    budgets = budgets.filter(b => b.id !== id);
+    await api.post(`/api/budgets/${id}/archive`);
   },
 };
-
-// Temporary mock for analytic account names resolution (should come from analyticAccountService)
-// We'll reuse the same mock data as in analyticAccountService to keep consistency.
-const mockAnalyticAccounts = [
-  { id: '1', name: 'Retail Sales', type: 'income' },
-  { id: '2', name: 'Furniture Sales', type: 'income' },
-  { id: '3', name: 'Service Income', type: 'income' },
-  { id: '4', name: 'Office Expenses', type: 'expense' },
-  { id: '5', name: 'Transportation', type: 'expense' },
-  { id: '6', name: 'Utilities', type: 'expense' },
-  { id: '7', name: 'Marketing', type: 'expense' },
-];
