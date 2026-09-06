@@ -1,1 +1,0 @@
-import { useQuery } from '@tanstack/react-query'; import { budgetReportService } from '@/services/budgetReportService'; import type { BudgetReportFilters } from '@/types/budgetReport'; export const useBudgetReport = (filters?: BudgetReportFilters) => useQuery({ queryKey: ['budgetReport', filters], queryFn: () => budgetReportService.getBudgetReport(filters) });
