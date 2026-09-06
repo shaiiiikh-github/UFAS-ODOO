@@ -3,6 +3,8 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { Login } from '@/pages/auth/Login';
 import { Dashboard } from '@/pages/dashboard/Dashboard';
+import { Profile } from '@/pages/settings/Profile';
+import { Settings } from '@/pages/settings/Settings';
 
 import { Contacts } from '@/pages/master/contacts/Contacts';
 import { Products } from '@/pages/master/products/Products';
@@ -260,10 +262,20 @@ export const router = createBrowserRouter([
   },
 
   {
+    path: '/profile',
+    element: (
+      <AppShell>
+        <Profile />
+      </AppShell>
+    ),
+  },
+
+  {
     path: '/settings',
-    ...page(
-      'Settings',
-      'Configure system settings.'
+    element: (
+      <AppShell>
+        <Settings />
+      </AppShell>
     ),
   },
 

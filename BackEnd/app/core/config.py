@@ -4,9 +4,9 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Urban Furniture Accounting System"
     
     POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "tahir2535"
+    POSTGRES_PASSWORD: str = "sql"
     POSTGRES_SERVER: str = "localhost"
-    POSTGRES_PORT: int = 5433
+    POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "urban_accounting"
 
     # Auth / JWT settings. Override SECRET_KEY via .env in any real deployment.
