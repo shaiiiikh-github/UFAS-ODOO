@@ -10,9 +10,10 @@ export interface User {
 export interface LoginCredentials {
   email: string;
   password: string;
+  role: UserRole;
 }
 
 export interface AuthResponse {
   user: User;
-  token?: string; // placeholder for future JWT
+  token?: string;
 }

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -78,6 +80,8 @@ const BOTTOM_NAV = [
 ];
 
 export const Sidebar: React.FC = () => {
+  const { user } = useAuth();
+  const currentRole = user?.role || 'admin';
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
